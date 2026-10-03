@@ -1,0 +1,241 @@
+{
+  "communities": {
+    "0": [
+      "database_ddl_script_ddl",
+      "database_ddl_script_ddl_com_acuerdo_detalle",
+      "database_ddl_script_ddl_com_acuerdo_proveedor",
+      "database_ddl_script_ddl_com_articulo_proveedor",
+      "database_ddl_script_ddl_com_condicion_pago",
+      "database_ddl_script_ddl_com_cotizacion_proveedor",
+      "database_ddl_script_ddl_com_moneda",
+      "database_ddl_script_ddl_com_proveedor",
+      "database_ddl_script_ddl_com_rfq_cabecera",
+      "database_ddl_script_ddl_com_rfq_proveedor",
+      "database_ddl_script_ddl_cxc_bitacora_resolucion_discre",
+      "database_ddl_script_ddl_cxc_bitacora_sistema_general",
+      "database_ddl_script_ddl_cxc_detalle_sat_virtual",
+      "database_ddl_script_ddl_cxc_discrepancia_auditoria",
+      "database_ddl_script_ddl_cxc_lote_conciliacion_sat",
+      "database_ddl_script_ddl_cxp_cheque",
+      "database_ddl_script_ddl_cxp_contrasena_pago",
+      "database_ddl_script_ddl_cxp_factura_proveedor",
+      "database_ddl_script_ddl_cxp_retencion",
+      "database_ddl_script_ddl_nom_parametro",
+      "database_ddl_script_ddl_seg_bitacora_acceso",
+      "database_ddl_script_ddl_seg_permiso",
+      "database_ddl_script_ddl_seg_rol",
+      "database_ddl_script_ddl_seg_rol_permiso",
+      "database_ddl_script_ddl_seg_usuario_rol"
+    ],
+    "1": [
+      "database_ddl_script_ddl_cxc_clasificacion_mora",
+      "database_ddl_script_ddl_cxc_cliente",
+      "database_ddl_script_ddl_cxc_cobrador",
+      "database_ddl_script_ddl_cxc_cola_contingencia_fel",
+      "database_ddl_script_ddl_cxc_cola_nomina_transmision",
+      "database_ddl_script_ddl_cxc_compensacion_saldos",
+      "database_ddl_script_ddl_cxc_conciliacion_bancaria",
+      "database_ddl_script_ddl_cxc_cuenta_por_cobrar",
+      "database_ddl_script_ddl_cxc_deposito_bancario",
+      "database_ddl_script_ddl_cxc_deposito_cobrador",
+      "database_ddl_script_ddl_cxc_documento_venta",
+      "database_ddl_script_ddl_cxc_documento_venta_detalle",
+      "database_ddl_script_ddl_cxc_gestion_cobranza",
+      "database_ddl_script_ddl_cxc_libro_ventas",
+      "database_ddl_script_ddl_cxc_recibo_cobro",
+      "database_ddl_script_ddl_cxc_registro_certificacion_dte",
+      "database_ddl_script_ddl_cxc_ruta_cobro",
+      "database_ddl_script_ddl_cxc_ruta_cobro_detalle",
+      "database_ddl_script_ddl_cxc_transaccion_ajuste",
+      "database_ddl_script_ddl_cxc_turno_caja",
+      "database_ddl_script_ddl_cxc_zona_geografica",
+      "database_ddl_script_ddl_cxp_caja_chica",
+      "database_ddl_script_ddl_cxp_caja_chica_movimiento",
+      "database_ddl_script_ddl_nom_sucursal",
+      "database_ddl_script_ddl_seg_usuario"
+    ],
+    "2": [
+      "database_ddl_script_ddl_com_cotizacion_detalle",
+      "database_ddl_script_ddl_com_solicitud_detalle",
+      "database_ddl_script_ddl_cxp_factura_proveedor_detalle",
+      "database_ddl_script_ddl_inv_alerta_escasez",
+      "database_ddl_script_ddl_inv_articulo",
+      "database_ddl_script_ddl_inv_bodega",
+      "database_ddl_script_ddl_inv_categoria",
+      "database_ddl_script_ddl_inv_conversion_udm",
+      "database_ddl_script_ddl_inv_existencia_bodega",
+      "database_ddl_script_ddl_inv_existencia_bodega_periodo",
+      "database_ddl_script_ddl_inv_inventario_fisico",
+      "database_ddl_script_ddl_inv_inventario_fisico_detalle",
+      "database_ddl_script_ddl_inv_kardex_movimiento",
+      "database_ddl_script_ddl_inv_lote_fifo",
+      "database_ddl_script_ddl_inv_requisicion",
+      "database_ddl_script_ddl_inv_requisicion_detalle",
+      "database_ddl_script_ddl_inv_traslado_bodega",
+      "database_ddl_script_ddl_inv_traslado_bodega_detalle",
+      "database_ddl_script_ddl_inv_unidad_medida"
+    ],
+    "3": [
+      "database_ddl_script_ddl_nom_anticipo_empleado",
+      "database_ddl_script_ddl_nom_comision_venta",
+      "database_ddl_script_ddl_nom_constancia_pago",
+      "database_ddl_script_ddl_nom_consumo_tienda_interna",
+      "database_ddl_script_ddl_nom_descuento_igss_sat",
+      "database_ddl_script_ddl_nom_detalle",
+      "database_ddl_script_ddl_nom_empleado",
+      "database_ddl_script_ddl_nom_hora_extra",
+      "database_ddl_script_ddl_nom_liquidacion_laboral",
+      "database_ddl_script_ddl_nom_periodo",
+      "database_ddl_script_ddl_nom_planilla_igss",
+      "database_ddl_script_ddl_nom_prestamo_cuota",
+      "database_ddl_script_ddl_nom_prestamo_empleado",
+      "database_ddl_script_ddl_nom_puesto",
+      "database_ddl_script_ddl_nom_suspension_permiso",
+      "database_ddl_script_ddl_nom_transferencia_bancaria",
+      "database_ddl_script_ddl_nom_transferencia_bancaria_det",
+      "database_ddl_script_ddl_nom_vacacion"
+    ],
+    "4": [
+      "database_ddl_script_ddl_com_devolucion_detalle",
+      "database_ddl_script_ddl_com_devolucion_proveedor",
+      "database_ddl_script_ddl_com_excepcion_orden",
+      "database_ddl_script_ddl_com_orden_compra",
+      "database_ddl_script_ddl_com_orden_compra_detalle",
+      "database_ddl_script_ddl_com_recepcion",
+      "database_ddl_script_ddl_com_recepcion_detalle",
+      "database_ddl_script_ddl_com_seguimiento_orden",
+      "database_ddl_script_ddl_vw_com_precio_historial"
+    ],
+    "5": [
+      "database_ddl_script_ddl_com_categoria_compra",
+      "database_ddl_script_ddl_com_centro_costo",
+      "database_ddl_script_ddl_com_comparativo_cotizaciones",
+      "database_ddl_script_ddl_com_grupo_compra",
+      "database_ddl_script_ddl_com_solicitud_compra",
+      "database_ddl_script_ddl_com_termino_entrega",
+      "database_ddl_script_ddl_com_workflow_aprobacion",
+      "database_ddl_script_ddl_nom_departamento"
+    ]
+  },
+  "cohesion": {
+    "0": 0.14333333333333334,
+    "1": 0.18,
+    "2": 0.1695906432748538,
+    "3": 0.16993464052287582,
+    "4": 0.3611111111111111,
+    "5": 0.25
+  },
+  "gods": [
+    {
+      "id": "database_ddl_script_ddl_seg_usuario",
+      "label": "SEG_USUARIO",
+      "degree": 104
+    },
+    {
+      "id": "database_ddl_script_ddl_nom_empleado",
+      "label": "NOM_EMPLEADO",
+      "degree": 32
+    },
+    {
+      "id": "database_ddl_script_ddl_inv_articulo",
+      "label": "INV_ARTICULO",
+      "degree": 19
+    },
+    {
+      "id": "database_ddl_script_ddl_cxc_documento_venta",
+      "label": "CXC_DOCUMENTO_VENTA",
+      "degree": 16
+    },
+    {
+      "id": "database_ddl_script_ddl_inv_bodega",
+      "label": "INV_BODEGA",
+      "degree": 12
+    },
+    {
+      "id": "database_ddl_script_ddl_com_solicitud_compra",
+      "label": "COM_SOLICITUD_COMPRA",
+      "degree": 12
+    },
+    {
+      "id": "database_ddl_script_ddl_nom_periodo",
+      "label": "NOM_PERIODO",
+      "degree": 10
+    },
+    {
+      "id": "database_ddl_script_ddl_com_orden_compra",
+      "label": "COM_ORDEN_COMPRA",
+      "degree": 10
+    },
+    {
+      "id": "database_ddl_script_ddl_com_recepcion",
+      "label": "COM_RECEPCION",
+      "degree": 9
+    },
+    {
+      "id": "database_ddl_script_ddl_cxc_cuenta_por_cobrar",
+      "label": "CXC_CUENTA_POR_COBRAR",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "COM_SOLICITUD_COMPRA",
+      "target": "NOM_SUCURSAL",
+      "source_files": [
+        "database/ddl/SCRIPT_DDL.sql",
+        "database/ddl/SCRIPT_DDL.sql"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 1 \u2192 community 5"
+    },
+    {
+      "source": "INV_BODEGA",
+      "target": "NOM_SUCURSAL",
+      "source_files": [
+        "database/ddl/SCRIPT_DDL.sql",
+        "database/ddl/SCRIPT_DDL.sql"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 1 \u2192 community 2"
+    },
+    {
+      "source": "NOM_EMPLEADO",
+      "target": "NOM_SUCURSAL",
+      "source_files": [
+        "database/ddl/SCRIPT_DDL.sql",
+        "database/ddl/SCRIPT_DDL.sql"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 1 \u2192 community 3"
+    },
+    {
+      "source": "NOM_DEPARTAMENTO",
+      "target": "NOM_EMPLEADO",
+      "source_files": [
+        "database/ddl/SCRIPT_DDL.sql",
+        "database/ddl/SCRIPT_DDL.sql"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 5 \u2192 community 3"
+    },
+    {
+      "source": "COM_DEVOLUCION_PROVEEDOR",
+      "target": "NOM_EMPLEADO",
+      "source_files": [
+        "database/ddl/SCRIPT_DDL.sql",
+        "database/ddl/SCRIPT_DDL.sql"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "note": "Bridges community 3 \u2192 community 4"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

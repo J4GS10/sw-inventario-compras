@@ -1,0 +1,524 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Sistema de diseno — skills/patron-diseno.md (fuente de verdad)
+   §3 paleta oficial · §4 tipografia · §7 componentes · §12 consistencia
+   Material 3 (elevacion, roles semanticos) · Apple HIG (jerarquia, espaciado)
+   · Fluent (sombras suaves, transiciones breves)
+   Los NOMBRES de token son estables; los VALORES siguen el skill.
+   ========================================================================== */
+@theme {
+  /* Identidad — el sidebar es SIEMPRE navy (§3 `sidebar`), no cambia con el tema */
+  --color-navy: #0b1a38;
+  --color-navy-700: #13254a;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.06); /* §3 sidebarHover */
+  --color-sidebar-active: rgba(255, 255, 255, 0.1); /* §3 sidebarActive */
+  /* Texto sobre el sidebar navy (fijo, no cambia con el tema) */
+  --color-navy-ink: #eef3fc;
+  --color-navy-ink-soft: #8fa2c8;
+  --color-navy-ink-faint: #6f83ac;
+
+  /* --- Paleta oficial (§3), modo claro --- */
+  --color-brand: #0071e3; /* accent */
+  --color-brand-600: #0063c6; /* accent :hover (mas oscuro) */
+  --color-brand-050: #e8f1fb; /* accentSub */
+  --color-brand-ink: #0071e3; /* texto/icono de marca */
+  --color-ice: #e8f1fb;
+
+  --color-teal: #00a693; /* §3 teal — info complementaria */
+  --color-teal-050: #e0f4f2;
+
+  --color-success: #34c759;
+  --color-success-050: #e7f9ec;
+  --color-warning: #ff9500;
+  --color-warning-050: #fff2e0;
+  --color-danger: #ff3b30;
+  --color-danger-050: #ffe9e7;
+
+  /* --- Superficie y texto (§3 / §4) --- */
+  --color-bg: #e8f0fe; /* fondo principal de la app */
+  --color-surface: #ffffff; /* tarjetas, formularios, tablas */
+  --color-surface-2: #f2f5fb; /* superficie alterna sutil */
+  --color-line: rgba(0, 0, 0, 0.06); /* border */
+  --color-ink: #1d1d1f; /* text */
+  --color-ink-soft: #6e6e73; /* textSub */
+  --color-ink-faint: #aeaeb2; /* textMuted */
+  --color-heading: #1d1d1f; /* titulos/valores (adapta en oscuro) */
+  --color-structural: #6e6e73; /* bordes en hover de campos */
+
+  /* Tokens de componente (§7) */
+  --field-bg: rgba(0, 0, 0, 0.03);
+  --field-border: rgba(0, 0, 0, 0.1);
+  --btn-ghost-bg: rgba(0, 0, 0, 0.05);
+  /* Encabezado de tabla: OPACO (es sticky; si es translucido la data se
+     transparenta al hacer scroll). Tinte sutil ~1.5% negro sobre blanco. */
+  --table-head-bg: #f2f4f7;
+  /* Velo de modales / popovers: neutro, no tinte de marca. */
+  --overlay: rgba(15, 20, 30, 0.45);
+
+  /* --- Tipografia (§4) --- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-data: "JetBrains Mono", "SF Mono", ui-monospace, "Roboto Mono",
+    monospace;
+  --font-mono: var(--font-data);
+
+  /* --- Radios (§12): 14 tarjetas · 10 secundario · 8 botones/inputs --- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* --- Sombras (§12) --- */
+  --shadow-sm: 0 2px 16px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.09);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+
+  --ease-fluent: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* `color-scheme` (fuera de @theme: no es un token, es una propiedad CSS real)
+   le dice al navegador que use su UI NATIVA (popup de <select>, scrollbars,
+   autofill) en el mismo tono que la app. Sin esto, el navegador dibuja el
+   popup de <option> con el tema del SISTEMA OPERATIVO (no con el de la app):
+   si el SO esta en oscuro y la app en claro (o viceversa), el texto de las
+   opciones queda del color de un tema sobre el fondo del otro -> invisible
+   hasta pasar el mouse (el resaltado nativo si contrasta). Debe seguir
+   exactamente la misma condicion que los bloques de abajo. */
+:root {
+  color-scheme: light;
+}
+
+/* ---- MODO OSCURO — mismos roles, hues recalibrados --------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-bg: #0d1220;
+    --color-surface: #151b2b;
+    --color-surface-2: #1b2233;
+    --color-line: rgba(255, 255, 255, 0.1);
+    --color-ink: #e9ecf1;
+    --color-ink-soft: #a2a9b5;
+    --color-ink-faint: #6f7783;
+    --color-heading: #f2f4f8;
+    --color-structural: #8a919c;
+
+    --color-brand: #3b95ff;
+    --color-brand-600: #57a6ff;
+    --color-brand-050: #14273f;
+    --color-brand-ink: #7fbcff;
+    --color-ice: #14273f;
+
+    --color-teal: #33bcac;
+    --color-teal-050: #0e332f;
+    --color-success: #3ddc84;
+    --color-success-050: #123422;
+    --color-warning: #ffab3d;
+    --color-warning-050: #3a2b12;
+    --color-danger: #ff5f56;
+    --color-danger-050: #3a1a17;
+
+    --field-bg: rgba(255, 255, 255, 0.04);
+    --field-border: rgba(255, 255, 255, 0.14);
+    --btn-ghost-bg: rgba(255, 255, 255, 0.08);
+    --table-head-bg: #1b2233;
+    --overlay: rgba(0, 0, 0, 0.6);
+
+    --shadow-sm: 0 2px 16px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 18px 46px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0d1220;
+  --color-surface: #151b2b;
+  --color-surface-2: #1b2233;
+  --color-line: rgba(255, 255, 255, 0.1);
+  --color-ink: #e9ecf1;
+  --color-ink-soft: #a2a9b5;
+  --color-ink-faint: #6f7783;
+  --color-heading: #f2f4f8;
+  --color-structural: #8a919c;
+
+  --color-brand: #3b95ff;
+  --color-brand-600: #57a6ff;
+  --color-brand-050: #14273f;
+  --color-brand-ink: #7fbcff;
+  --color-ice: #14273f;
+
+  --color-teal: #33bcac;
+  --color-teal-050: #0e332f;
+  --color-success: #3ddc84;
+  --color-success-050: #123422;
+  --color-warning: #ffab3d;
+  --color-warning-050: #3a2b12;
+  --color-danger: #ff5f56;
+  --color-danger-050: #3a1a17;
+
+  --field-bg: rgba(255, 255, 255, 0.04);
+  --field-border: rgba(255, 255, 255, 0.14);
+  --btn-ghost-bg: rgba(255, 255, 255, 0.08);
+  --table-head-bg: #1b2233;
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --shadow-sm: 0 2px 16px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 18px 46px rgba(0, 0, 0, 0.6);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+/* Jerarquia tipografica (Apple HIG) */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--color-heading);
+}
+h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Transiciones Fluent — breves y naturales */
+button,
+a,
+input,
+select,
+textarea,
+.transition-fluent {
+  transition:
+    background-color 150ms var(--ease-fluent),
+    border-color 150ms var(--ease-fluent),
+    color 150ms var(--ease-fluent),
+    box-shadow 150ms var(--ease-fluent),
+    opacity 150ms var(--ease-fluent),
+    transform 150ms var(--ease-fluent);
+}
+
+/* Foco visible en todo elemento interactivo (WCAG 2.2 AA) */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+/* ---- Clases de componente (§7) ---------------------------------------- */
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg); /* 14px */
+    box-shadow: var(--shadow-sm);
+  }
+
+  .surface-2 {
+    background: var(--color-surface-2);
+  }
+
+  .mono {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-ink-soft);
+    letter-spacing: 0.02em;
+  }
+
+  /* Inputs (§7): fondo tenue, borde 1.5px, radio 8, padding 7/12, texto 13 */
+  .field-control {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--color-ink);
+    background: var(--field-bg);
+    border: 1.5px solid var(--field-border);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px;
+    min-height: 36px;
+    width: 100%;
+    outline: none;
+  }
+  .field-control:hover:not(:disabled) {
+    border-color: var(--color-structural);
+  }
+  .field-control:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 20%, transparent);
+  }
+  .field-control[data-state="invalid"] {
+    border-color: var(--color-danger);
+  }
+  .field-control[data-state="invalid"]:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 22%, transparent);
+  }
+  .field-control[data-state="valid"] {
+    border-color: var(--color-success);
+  }
+  /* Defensivo ademas de `color-scheme` (arriba): fija explicitamente el color
+     del popup de opciones en vez de confiar solo en la herencia nativa. */
+  select.field-control option {
+    color: var(--color-ink);
+    background-color: var(--color-surface);
+  }
+  textarea.field-control {
+    min-height: 78px;
+    resize: vertical;
+  }
+  /* Campos numericos / de codigo: monoespaciada (§4) */
+  .field-control.mono,
+  input.field-control[type="number"] {
+    font-family: var(--font-data);
+  }
+
+  .field-hint {
+    font-size: 0.7rem;
+    color: var(--color-ink-faint);
+  }
+  .field-hint[data-state="invalid"] {
+    color: var(--color-danger);
+  }
+
+  /* Botones (§7): sin borde, radio 8, transicion opacity/background .15s */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font: inherit;
+    font-weight: 600;
+    border-radius: var(--radius-sm); /* 8px */
+    padding: 0.5rem 0.9rem;
+    min-height: 36px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    user-select: none;
+    transition:
+      opacity 0.15s var(--ease-fluent),
+      background-color 0.15s var(--ease-fluent),
+      box-shadow 0.15s var(--ease-fluent);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn-primary {
+    background: var(--color-brand);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-brand-600);
+  }
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-brand-ink);
+    border-color: var(--color-brand-ink);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--color-brand-050);
+  }
+  .btn-ghost {
+    background: var(--btn-ghost-bg); /* §7: ghost tiene fondo tenue */
+    color: var(--color-ink-soft);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-ink) 12%, transparent);
+    color: var(--color-ink);
+  }
+  .btn-danger {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+  }
+  .btn-sm {
+    padding: 0.3rem 0.6rem;
+    min-height: 30px;
+    font-size: 0.8rem;
+  }
+
+  /* Chips / badges (§7): pill, radio ~20, padding 2/9, texto 11, peso 500.
+     `white-space: nowrap`: un chip es una etiqueta de una sola linea — sin
+     esto, un estado largo ("Pendiente del gerente") se parte en 2 lineas
+     dentro de la columna fija de DataTable y descuadra la altura de la fila. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 20px;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  /* Tablas (§7): header tenue, ~11px, filas con borde sutil, hover, num a la derecha.
+     table-layout es SIEMPRE fixed (ver ui/DataTable.tsx): cada columna tiene un
+     ancho fijo por tipo de dato + un ancho minimo en <table>, asi una tabla ancha
+     hace SCROLL horizontal dentro de .table-scroll en vez de aplastar columnas de
+     texto en filas altas (skills/patron-diseno.md §11 "tablas adaptables"). */
+  .data-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-family: var(--font-data);
+    font-size: 0.82rem;
+  }
+  .data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /* Fondo OPACO obligatorio: el header es sticky sobre el cuerpo scrollable. */
+    background-color: var(--table-head-bg);
+    color: var(--color-ink-soft);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 0.62rem 0.85rem;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Sombra bajo el encabezado para separarlo del contenido al hacer scroll. */
+    box-shadow:
+      0 1px 0 var(--color-line),
+      0 4px 8px -4px rgba(0, 0, 0, 0.12);
+  }
+  .data-table thead th:first-child {
+    border-top-left-radius: var(--radius-md);
+  }
+  .data-table thead th:last-child {
+    border-top-right-radius: var(--radius-md);
+  }
+  .data-table tbody td {
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--color-line);
+    color: var(--color-ink);
+    vertical-align: middle;
+  }
+  /* Celdas de texto/refKind: recorte con elipsis (el ancho real lo fija el <col>
+     de table-layout:fixed; max-width:0 obliga a respetarlo en vez del contenido). */
+  .data-table tbody td.truncate-cell {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .data-table tbody tr:hover td {
+    background: var(--color-brand-050);
+  }
+  .data-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .table-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .table-scroll::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 999px;
+  }
+  /* Afordance de scroll horizontal: sombra en el borde con mas columnas ocultas. */
+  .table-scroll-fade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .table-scroll-fade-r {
+    right: 0;
+    background: linear-gradient(to left, color-mix(in srgb, var(--color-ink) 14%, transparent), transparent);
+  }
+  .table-scroll-fade-l {
+    left: 0;
+    background: linear-gradient(to right, color-mix(in srgb, var(--color-ink) 14%, transparent), transparent);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-surface-2) 25%,
+      var(--color-line) 37%,
+      var(--color-surface-2) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton 1.4s ease infinite;
+    border-radius: var(--radius-sm);
+  }
+  @keyframes skeleton {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+}

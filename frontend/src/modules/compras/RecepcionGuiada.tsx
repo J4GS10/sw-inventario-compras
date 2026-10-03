@@ -1,0 +1,301 @@
+/**
+ * Asistente guiado de Recepcion (rol Bodega) bajo esquema de CONTEO CIEGO:
+ * elegir la orden -> una fila por cada renglon PENDIENTE pero SIN mostrar la
+ * cantidad esperada, la cantidad pendiente ni el costo unitario (el
+ * bodeguero solo ve que identifica el renglon; cuenta fisicamente e ingresa
+ * lo que encontro, sin valor de referencia que lo sesgue) -> confirmar antes
+ * de enviar.
+ *
+ * El backend SI valida internamente que no se reciba mas de lo pendiente
+ * (`RecepcionService.registrar`), pero ese mensaje de error trae los numeros
+ * exactos (ordenado/procesado/pendiente) — revelarlo aqui violaria el conteo
+ * ciego, asi que `registrar()` lo cambia por un aviso generico.
+ *
+ * Reemplaza, solo para Recepciones, el flujo generico de `DocumentForm`
+ * (agregar lineas a mano y elegir el renglon de un select una por una).
+ * Reutiliza los mismos `headerFields` de `DOCUMENT_FORMS.recepciones` (mismas
+ * opciones, mismas validaciones) y el hook `useWizardStep` (igual que
+ * AsistenteCotizacion) para el esqueleto de avance entre pasos.
+ */
+import { useEffect, useState } from "react";
+import { http } from "../../core/HttpClient.js";
+import { messageOf } from "../../core/errors.js";
+import { formatQty } from "../../core/format.js";
+import { useWizardStep } from "../../core/useWizardStep.js";
+import { Field, FormGrid, type FieldValue } from "../../ui/Field.js";
+import { Modal } from "../../ui/Modal.js";
+import { Button } from "../../ui/primitives.js";
+import { useToast } from "../../ui/Toast.js";
+import { useOptions, withResolvedOptions } from "../../components/formSupport.js";
+import { DOCUMENT_FORMS } from "./documentForms.js";
+
+const HEADER_FIELDS = DOCUMENT_FORMS["recepciones"]!.headerFields;
+
+/** Mensaje generico cuando el backend rechaza el conteo por exceder lo pendiente — sin revelar numeros (conteo ciego). */
+const MENSAJE_CONTEO_RECHAZADO =
+  "El conteo no coincide con lo que el sistema espera para este renglon. Vuelve a contar físicamente y, si la diferencia persiste, avisa a tu supervisor.";
+
+interface LineaCaptura {
+  readonly idOcDetalle: number;
+  readonly descripcion: string;
+  readonly cantidadRecibida: string;
+  readonly cantidadRechazada: string;
+}
+
+type Header = Record<string, FieldValue>;
+
+type Paso =
+  | { tipo: "datos" }
+  | { tipo: "cantidades"; header: Header; lineas: readonly LineaCaptura[] }
+  | { tipo: "confirmar"; header: Header; lineas: readonly LineaCaptura[] };
+
+export function RecepcionGuiada(props: {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: (created?: Record<string, unknown>) => void;
+}): React.ReactElement {
+  const toast = useToast();
+  const { paso, setPaso, avanzar, cerrarSiNoAvanzo } = useWizardStep<Paso>({ tipo: "datos" });
+  const [header, setHeader] = useState<Header>({});
+  const [showErrors, setShowErrors] = useState(false);
+  const [cargandoLineas, setCargandoLineas] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const headerOpts = useOptions(props.open ? HEADER_FIELDS : [], header);
+
+  useEffect(() => {
+    if (!props.open) return;
+    setHeader({});
+    setShowErrors(false);
+    setPaso({ tipo: "datos" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.open]);
+
+  function faltaDatos(): string | null {
+    for (const f of HEADER_FIELDS) {
+      if (f.required === true && String(header[f.name] ?? "").trim() === "") {
+        return `${f.label}: requerido`;
+      }
+    }
+    return null;
+  }
+
+  async function irACantidades(): Promise<void> {
+    const err = faltaDatos();
+    if (err !== null) {
+      setShowErrors(true);
+      toast.error(err);
+      return;
+    }
+    const idOrdenCompra = Number(header["idOrdenCompra"]);
+    setCargandoLineas(true);
+    try {
+      const page = await http.list<Record<string, unknown>>(
+        `/api/com/ref/oc/${idOrdenCompra}/lineas-pendientes`,
+      );
+      // El filtro por pendiente>0 decide QUE renglones mostrar (uno ya
+      // completo no aplica) — no se muestra ese numero, solo se usa para
+      // elegir las filas.
+      const pendientes = page.data.filter((r) => Number(r["cantidadPendiente"]) > 0);
+      if (pendientes.length === 0) {
+        toast.error("Esta orden no tiene renglones pendientes por recibir");
+        return;
+      }
+      // Conteo ciego: SIN prellenar con la cantidad esperada — el bodeguero
+      // ingresa lo que contó físicamente, en blanco por defecto.
+      const lineas: LineaCaptura[] = pendientes.map((r) => ({
+        idOcDetalle: Number(r["idOcDetalle"]),
+        descripcion: String(r["descripcion"]),
+        cantidadRecibida: "",
+        cantidadRechazada: "",
+      }));
+      avanzar({ tipo: "cantidades", header, lineas });
+    } catch (e: unknown) {
+      toast.error(messageOf(e));
+    } finally {
+      setCargandoLineas(false);
+    }
+  }
+
+  function setLinea(idx: number, campo: "cantidadRecibida" | "cantidadRechazada", valor: string): void {
+    if (paso.tipo === "datos") return;
+    const lineas = paso.lineas.map((l, i) => (i === idx ? { ...l, [campo]: valor } : l));
+    setPaso({ ...paso, lineas });
+  }
+
+  /**
+   * Validacion a ciegas: solo que los numeros sean validos y que haya algo
+   * contado. NO compara contra lo pendiente (eso es exactamente lo que el
+   * conteo ciego no debe revelar) — el backend sí lo valida al registrar.
+   */
+  function irAConfirmar(): void {
+    if (paso.tipo !== "cantidades") return;
+    for (const l of paso.lineas) {
+      const recibida = Number(l.cantidadRecibida || "0");
+      const rechazada = Number(l.cantidadRechazada || "0");
+      if (!Number.isFinite(recibida) || recibida < 0 || !Number.isFinite(rechazada) || rechazada < 0) {
+        toast.error(`${l.descripcion}: cantidad invalida`);
+        return;
+      }
+      if (recibida + rechazada <= 0) {
+        toast.error(`${l.descripcion}: registra el conteo fisico (recibido y/o rechazado)`);
+        return;
+      }
+    }
+    avanzar({ tipo: "confirmar", header: paso.header, lineas: paso.lineas });
+  }
+
+  async function registrar(): Promise<void> {
+    if (paso.tipo !== "confirmar") return;
+    setSaving(true);
+    try {
+      const body = {
+        idOrdenCompra: Number(paso.header["idOrdenCompra"]),
+        idBodega: Number(paso.header["idBodega"]),
+        idEmpleadoRecibe: Number(paso.header["idEmpleadoRecibe"]),
+        lineas: paso.lineas.map((l) => ({
+          idOcDetalle: l.idOcDetalle,
+          cantidadRecibida: Number(l.cantidadRecibida || "0"),
+          cantidadRechazada: Number(l.cantidadRechazada || "0"),
+        })),
+      };
+      const created = await http.post<Record<string, unknown>>("/api/com/recepciones", body);
+      toast.success("Recepcion registrada");
+      props.onSuccess(created);
+      props.onClose();
+    } catch (e: unknown) {
+      const msg = messageOf(e);
+      toast.error(msg.includes("admite maximo") ? MENSAJE_CONTEO_RECHAZADO : msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (paso.tipo === "datos") {
+    return (
+      <Modal
+        open={props.open}
+        title="Recepcion guiada · 1. Orden y bodega"
+        onClose={() => cerrarSiNoAvanzo(props.onClose)}
+        width={560}
+        footer={
+          <>
+            <Button variant="ghost" onClick={props.onClose}>
+              Cancelar
+            </Button>
+            <Button icon="arrow-right" disabled={cargandoLineas} onClick={() => void irACantidades()}>
+              {cargandoLineas ? "Cargando renglones..." : "Siguiente"}
+            </Button>
+          </>
+        }
+      >
+        <FormGrid>
+          {HEADER_FIELDS.map((f) => (
+            <Field
+              key={f.name}
+              def={withResolvedOptions(f, headerOpts)}
+              value={header[f.name] ?? ""}
+              onChange={(v) => setHeader((h) => ({ ...h, [f.name]: v }))}
+              showErrors={showErrors}
+            />
+          ))}
+        </FormGrid>
+      </Modal>
+    );
+  }
+
+  if (paso.tipo === "cantidades") {
+    return (
+      <Modal
+        open={props.open}
+        title="Recepcion guiada · 2. Cantidades"
+        onClose={() => cerrarSiNoAvanzo(props.onClose)}
+        width={680}
+        footer={
+          <>
+            <Button variant="ghost" icon="chevron-left" onClick={() => setPaso({ tipo: "datos" })}>
+              Atras
+            </Button>
+            <Button icon="arrow-right" onClick={irAConfirmar}>
+              Siguiente
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-[0.82rem]" style={{ color: "var(--color-ink-soft)" }}>
+          Conteo ciego: cuenta físicamente cada renglón e ingresa lo que encontraste. No se muestra la cantidad esperada ni el costo — eso se reconcilia después, en Cuentas por Pagar.
+        </p>
+        <div className="grid gap-2">
+          {paso.lineas.map((l, i) => (
+            <div key={l.idOcDetalle} className="surface-2 grid gap-2 rounded-xl p-3" style={{ border: "1px solid var(--color-line)" }}>
+              <span className="text-[0.85rem] font-semibold" style={{ color: "var(--color-ink)" }}>
+                {l.descripcion}
+              </span>
+              <div className="flex flex-wrap gap-3">
+                <label className="grid gap-1">
+                  <span className="field-label">Cantidad recibida</span>
+                  <input
+                    className="field-control"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="0"
+                    style={{ width: 130 }}
+                    value={l.cantidadRecibida}
+                    onChange={(e) => setLinea(i, "cantidadRecibida", e.target.value)}
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="field-label">Cantidad rechazada</span>
+                  <input
+                    className="field-control"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="0"
+                    style={{ width: 130 }}
+                    value={l.cantidadRechazada}
+                    onChange={(e) => setLinea(i, "cantidadRechazada", e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      open={props.open}
+      title="Recepcion guiada · 3. Confirmar"
+      onClose={() => cerrarSiNoAvanzo(props.onClose)}
+      width={620}
+      footer={
+        <>
+          <Button variant="ghost" icon="chevron-left" onClick={() => avanzar({ tipo: "cantidades", header: paso.header, lineas: paso.lineas })}>
+            Volver a editar
+          </Button>
+          <Button icon="check" disabled={saving} onClick={() => void registrar()}>
+            {saving ? "Guardando..." : "Confirmar y registrar"}
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-[0.82rem]" style={{ color: "var(--color-ink-soft)" }}>
+        Revisa antes de confirmar — una vez registrada, la recepcion alimenta el kardex y la cuenta por pagar.
+      </p>
+      <div className="grid gap-2">
+        {paso.lineas.map((l) => (
+          <div key={l.idOcDetalle} className="flex items-center justify-between text-[0.82rem]">
+            <span style={{ color: "var(--color-ink)" }}>{l.descripcion}</span>
+            <span style={{ color: "var(--color-ink-faint)" }}>
+              recibida {formatQty(Number(l.cantidadRecibida))}
+              {Number(l.cantidadRechazada) > 0 ? ` · rechazada ${formatQty(Number(l.cantidadRechazada))}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}

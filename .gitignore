@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.local
+.DS_Store
+.vite/
+graphify-out/cache/
+
+# Herramientas locales y datos de MinIO (no versionar)
+tools/
+.minio-data/
+
+# Salida generada por scripts/qa-roles-smoke.mjs y similares
+qa-report.json
+qa-crud-report.json

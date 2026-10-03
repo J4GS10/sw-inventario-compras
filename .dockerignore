@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.vite
+**/coverage
+**/*.log
+.git
+.gitignore
+.claude
+.gemini
+graphify-out
+docs
+skills
+**/*.test.ts
+**/*.int.test.ts
+backend/tests

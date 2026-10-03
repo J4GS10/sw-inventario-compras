@@ -1,0 +1,35 @@
+{
+  "name": "sw-inventario",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ERP Inventario y Compras - monorepo (backend Fastify + frontend React 19)",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "db:deploy": "pnpm --filter backend exec tsx scripts/deploy.ts",
+    "db:deploy:full": "pnpm --filter backend exec tsx scripts/deploy.ts --full",
+    "db:seed": "pnpm --filter backend exec tsx scripts/deploy.ts --no-seed=false",
+    "db:seed:flujo": "pnpm --filter backend exec tsx scripts/seedFlujoDemo.ts",
+    "gen:entities": "pnpm --filter backend gen:entities",
+    "graphify:update": "graphify update .",
+    "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/minio.ps1",
+    "qa:roles": "node scripts/qa-roles-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.10",
+    "canvas": "^3.2.3",
+    "mupdf": "^1.28.1",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "allowScripts": {
+    "canvas@3.2.3": true
+  }
+}
