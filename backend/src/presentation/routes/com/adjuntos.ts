@@ -66,7 +66,7 @@ const DOCS: readonly DocDef[] = [
 
 function idParam(req: FastifyRequest): number {
   const id = Number.parseInt((req.params as { id?: string }).id ?? "", 10);
-  if (!Number.isInteger(id) || id <= 0) throw new ValidationError("Parametro 'id' invalido");
+  if (!Number.isInteger(id) || id <= 0) throw new ValidationError("Parámetro 'id' inválido");
   return id;
 }
 
@@ -89,7 +89,7 @@ export function registerComAdjuntoRoutes(app: FastifyInstance): void {
       { preHandler: authGuard([doc.write]) },
       async (req, reply) => {
         if (typeof req.file !== "function") {
-          throw new ValidationError("La peticion debe ser multipart/form-data");
+          throw new ValidationError("La petición debe ser multipart/form-data");
         }
         const part = await req.file();
         if (part === undefined) {
@@ -99,7 +99,11 @@ export function registerComAdjuntoRoutes(app: FastifyInstance): void {
         try {
           buffer = await part.toBuffer();
         } catch {
-          throw new ValidationError("El archivo supera el tamano maximo permitido");
+          throw new ValidationError("El archivo supera el tamaño máximo permitido");
+        }
+        // multipart recorta en silencio al llegar al limite: un archivo truncado NO es el archivo.
+        if (part.file.truncated) {
+          throw new ValidationError("El archivo supera el tamaño máximo permitido");
         }
         const meta = await adjuntos.subir(
           doc.tipo,
@@ -124,12 +128,17 @@ export function registerComAdjuntoRoutes(app: FastifyInstance): void {
         // por defecto se fuerza la descarga.
         const inline =
           (req.query as { disposition?: string }).disposition === "inline";
+        // Nombre seguro en la cabecera (sin comillas/CR/LF) + version RFC 5987 para acentos.
+        const seguro = nombre.replace(/[^A-Za-z0-9._-]/g, "_");
         reply
           .header("Content-Type", mime)
           .header(
             "Content-Disposition",
-            `${inline ? "inline" : "attachment"}; filename="${nombre}"`,
+            `${inline ? "inline" : "attachment"}; filename="${seguro}"; filename*=UTF-8''${encodeURIComponent(nombre)}`,
           )
+          // Defensa en profundidad: aunque algo activo llegara a guardarse, no se ejecuta en el origen de la app.
+          .header("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox")
+          .header("X-Content-Type-Options", "nosniff")
           .send(buffer);
       },
     );

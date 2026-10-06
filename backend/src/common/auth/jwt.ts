@@ -4,7 +4,7 @@
  * externas y sin conocimiento del negocio.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { UnauthorizedError } from "../errors/AppError.js";
 
 export interface JwtPayload {
@@ -16,6 +16,18 @@ export interface JwtPayload {
   readonly permisos?: readonly string[];
   readonly iat?: number;
   readonly exp?: number;
+  /** Identificador unico del token (permite revocarlo al cerrar sesion). */
+  readonly jti?: string;
+}
+
+/** Tokens revocados (jti -> exp). En memoria: se pierde al reiniciar (los tokens duran 8 h). */
+const REVOCADOS = new Map<string, number>();
+
+export function revocarToken(jti: string, exp: number | undefined): void {
+  const ahora = Math.floor(Date.now() / 1000);
+  REVOCADOS.set(jti, exp ?? ahora + 8 * 3600);
+  // limpieza oportunista de los ya vencidos
+  if (REVOCADOS.size > 5000) for (const [k, e] of REVOCADOS) if (e < ahora) REVOCADOS.delete(k);
 }
 
 function base64url(input: Buffer): string {
@@ -40,6 +52,7 @@ export function signJwt(
   const now = Math.floor(Date.now() / 1000);
   const body: JwtPayload = {
     ...payload,
+    jti: payload.jti ?? randomUUID(),
     iat: now,
     exp: payload.exp ?? now + expiresInSeconds,
   };
@@ -59,19 +72,23 @@ export function verifyJwt(token: string, secret: string): JwtPayload {
     expected.length !== provided.length ||
     !timingSafeEqual(expected, provided)
   ) {
-    throw new UnauthorizedError("Firma de token invalida");
+    throw new UnauthorizedError("Firma de token inválida");
   }
   let payload: JwtPayload;
   try {
     payload = JSON.parse(fromBase64url(p).toString("utf8")) as JwtPayload;
   } catch {
-    throw new UnauthorizedError("Payload de token invalido");
+    throw new UnauthorizedError("Payload de token inválido");
   }
-  if (payload.exp !== undefined && payload.exp < Math.floor(Date.now() / 1000)) {
+  // exp es OBLIGATORIO: un token firmado sin vencimiento no caduca nunca.
+  if (typeof payload.exp !== "number" || payload.exp < Math.floor(Date.now() / 1000)) {
     throw new UnauthorizedError("Token expirado");
   }
+  if (payload.jti !== undefined && REVOCADOS.has(payload.jti)) {
+    throw new UnauthorizedError("Sesión cerrada");
+  }
   if (typeof payload.sub !== "number") {
-    throw new UnauthorizedError("Token sin sujeto valido");
+    throw new UnauthorizedError("Token sin sujeto válido");
   }
   return payload;
 }

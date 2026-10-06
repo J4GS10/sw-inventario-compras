@@ -41,17 +41,17 @@ export const PERMISO_META: Record<PermisoCodigo, { nombre: string; descripcion: 
   [Permisos.SOLICITUD_CREAR]: { nombre: "Crear solicitud de compra", descripcion: "Ingresar solicitudes de compra" },
   [Permisos.SOLICITUD_VER]: { nombre: "Ver solicitudes", descripcion: "Consultar solicitudes de compra" },
   [Permisos.SOLICITUD_APROBAR_JEFE]: { nombre: "Aprobar (jefe inmediato)", descripcion: "Aprobar, rechazar o ajustar cantidades en PENDIENTE_JEFE" },
-  [Permisos.SOLICITUD_APROBAR_GERENTE]: { nombre: "Aprobar (gerente de area)", descripcion: "Aprobar o rechazar en PENDIENTE_GERENTE" },
+  [Permisos.SOLICITUD_APROBAR_GERENTE]: { nombre: "Aprobar (gerente de área)", descripcion: "Aprobar o rechazar en PENDIENTE_GERENTE" },
   [Permisos.RFQ_GESTIONAR]: { nombre: "Gestionar RFQ", descripcion: "Crear, ver y cerrar RFQ, invitar proveedores" },
   [Permisos.COTIZACION_GESTIONAR]: { nombre: "Gestionar cotizaciones", descripcion: "Registrar y ver cotizaciones de proveedor" },
-  [Permisos.COTIZACION_ADJUDICAR]: { nombre: "Adjudicar cotizacion", descripcion: "Ver, adjudicar y registrar criterios" },
-  [Permisos.OC_GESTIONAR]: { nombre: "Gestionar ordenes de compra", descripcion: "Generar OC, verla y cambiar su estado" },
-  [Permisos.RECEPCION_GESTIONAR]: { nombre: "Gestionar recepciones", descripcion: "Registrar y ver recepciones de mercaderia" },
+  [Permisos.COTIZACION_ADJUDICAR]: { nombre: "Adjudicar cotización", descripcion: "Ver, adjudicar y registrar criterios" },
+  [Permisos.OC_GESTIONAR]: { nombre: "Gestionar órdenes de compra", descripcion: "Generar OC, verla y cambiar su estado" },
+  [Permisos.RECEPCION_GESTIONAR]: { nombre: "Gestionar recepciones", descripcion: "Registrar y ver recepciones de mercadería" },
   [Permisos.DEVOLUCION_GESTIONAR]: { nombre: "Gestionar devoluciones", descripcion: "Registrar y ver devoluciones a proveedor" },
-  [Permisos.CATALOGO_VER]: { nombre: "Ver catalogos", descripcion: "Consultar catalogos del modulo" },
-  [Permisos.CATALOGO_EDITAR]: { nombre: "Editar catalogos operativos", descripcion: "Crear, editar y eliminar proveedores, acuerdos, condiciones, grupos, centros de costo" },
-  [Permisos.CATALOGO_ADMIN]: { nombre: "Administrar monedas", descripcion: "Editar el catalogo de monedas" },
-  [Permisos.ANALISIS_VER]: { nombre: "Ver analisis", descripcion: "Dashboard, comparativo, historial de precios y reportes" },
+  [Permisos.CATALOGO_VER]: { nombre: "Ver catálogos", descripcion: "Consultar catálogos del módulo" },
+  [Permisos.CATALOGO_EDITAR]: { nombre: "Editar catálogos operativos", descripcion: "Crear, editar y eliminar proveedores, acuerdos, condiciones, grupos, centros de costo" },
+  [Permisos.CATALOGO_ADMIN]: { nombre: "Administrar monedas", descripcion: "Editar el catálogo de monedas" },
+  [Permisos.ANALISIS_VER]: { nombre: "Ver análisis", descripcion: "Dashboard, comparativo, historial de precios y reportes" },
 };
 
 /** Roles del modulo y sus permisos. */
@@ -73,7 +73,7 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
   // Gerente de area: solo lo que aprueba. No ve RFQ/Cotizacion/OC/Recepcion/
   // Devolucion — no las gestiona, no las ve.
   GERENTE_AREA: {
-    nombre: "Gerente de area",
+    nombre: "Gerente de área",
     permisos: [
       Permisos.SOLICITUD_VER,
       Permisos.SOLICITUD_APROBAR_GERENTE,

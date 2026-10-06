@@ -68,8 +68,8 @@ export const recepcionStateMachine = new StateMachine<RecepcionEstado>(
     // (acto seguido queda con borrado logico).
     ALIMENTADO_CXP: ["RECIBIDO"],
   },
-  "Recepcion",
-  "la recepcion",
+  "Recepción",
+  "la recepción",
 );
 
 /** Nivel jerarquico por estado de la solicitud (para COM_WORKFLOW_APROBACION). */

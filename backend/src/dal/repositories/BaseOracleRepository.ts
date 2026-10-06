@@ -33,6 +33,7 @@ import {
 } from "../../entities/support/EntityDescriptor.js";
 import { oraclePool } from "../OraclePool.js";
 import type { IRepository } from "../contracts/IRepository.js";
+import { buildSearchClause } from "./searchSql.js";
 
 type BindMap = Record<string, unknown>;
 
@@ -88,6 +89,18 @@ export abstract class BaseOracleRepository<TEntity, TCreate, TUpdate>
     }, conn);
   }
 
+  public async lockById(id: number, conn: Connection): Promise<boolean> {
+    try {
+      const res = await conn.execute(
+        `SELECT ${this.d.pk} FROM ${this.d.table} WHERE ${this.d.pk} = :id AND ${this.d.softDelete.flag} = 'N' FOR UPDATE`,
+        { id },
+      );
+      return (res.rows?.length ?? 0) > 0;
+    } catch (error) {
+      throw mapOracleError(error, this.d.table);
+    }
+  }
+
   public async findAll(
     query: PageQuery,
     conn?: Connection,
@@ -95,8 +108,8 @@ export abstract class BaseOracleRepository<TEntity, TCreate, TUpdate>
     const q = normalizePageQuery(query);
     return oraclePool().withConnection(async (c) => {
       try {
-        const { clause, binds } = this.buildWhere(q.filters ?? []);
-        const orderBy = this.buildOrderBy(q.sort, q.order ?? "asc");
+        const { clause, binds } = this.buildWhere(q.filters ?? [], q.search);
+        const orderBy = this.buildOrderBy(q.sort, q.order);
         const offset = (q.page - 1) * q.pageSize;
 
         // Una sola consulta: filas de la pagina + total del conjunto filtrado
@@ -392,24 +405,41 @@ export abstract class BaseOracleRepository<TEntity, TCreate, TUpdate>
     );
   }
 
-  protected buildOrderBy(sort: string | undefined, order: "asc" | "desc"): string {
-    const prop =
-      sort !== undefined && this.d.sortable.includes(sort)
-        ? sort
-        : this.d.defaultSort;
+  /**
+   * Orden de la consulta. Sin `sort` valido se usa el orden por defecto del
+   * descriptor (lo mas reciente primero para documentos y catalogos). Siempre
+   * se agrega la PK como desempate: sin el, filas con el mismo valor cambian de
+   * posicion entre paginas y la paginacion repite/omite registros.
+   */
+  protected buildOrderBy(
+    sort: string | undefined,
+    order: "asc" | "desc" | undefined,
+  ): string {
+    const explicito = sort !== undefined && this.d.sortable.includes(sort);
+    const prop = explicito ? sort : this.d.defaultSort;
+    const dir = (explicito ? (order ?? "asc") : this.d.defaultOrder) === "desc" ? "DESC" : "ASC";
     const col = findColumn(this.d, prop);
     const dbCol = col?.db ?? this.d.pk;
-    const dir = order === "desc" ? "DESC" : "ASC";
-    return `ORDER BY ${dbCol} ${dir}`;
+    const desempate = dbCol === this.d.pk ? "" : `, ${this.d.pk} ${dir}`;
+    return `ORDER BY ${dbCol} ${dir} NULLS LAST${desempate}`;
   }
 
-  protected buildWhere(filters: readonly FilterCondition[]): {
+  protected buildWhere(
+    filters: readonly FilterCondition[],
+    search?: string,
+  ): {
     clause: string;
     binds: BindMap;
   } {
     const parts: string[] = [`${this.d.softDelete.flag} = 'N'`];
     const binds: BindMap = {};
     let i = 0;
+
+    const busqueda = buildSearchClause(this.d, search);
+    if (busqueda !== null) {
+      parts.push(busqueda.clause);
+      Object.assign(binds, busqueda.binds);
+    }
 
     for (const f of filters) {
       if (!this.d.filterable.includes(f.prop)) continue;
@@ -439,8 +469,9 @@ export abstract class BaseOracleRepository<TEntity, TCreate, TUpdate>
           break;
         }
         case "like":
-          binds[p] = `%${String(f.value ?? "")}%`;
-          parts.push(`UPPER(${col.db}) LIKE UPPER(:${p})`);
+          // `%` y `_` escritos por el usuario son texto, no comodines.
+          binds[p] = `%${String(f.value ?? "").replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+          parts.push(`UPPER(${col.db}) LIKE UPPER(:${p}) ESCAPE '\\'`);
           break;
         default: {
           const op = SQL_OPERATOR[f.operator] ?? "=";
@@ -483,7 +514,7 @@ export abstract class BaseOracleRepository<TEntity, TCreate, TUpdate>
         if (value instanceof Date) return value;
         const dt = new Date(String(value));
         if (Number.isNaN(dt.getTime())) {
-          throw new ValidationError(`Fecha invalida en ${col.prop}`);
+          throw new ValidationError(`Fecha inválida en ${col.prop}`);
         }
         return dt;
       }

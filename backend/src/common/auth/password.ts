@@ -45,7 +45,7 @@ function derive(
 /** Devuelve el hash serializado listo para guardar en PASSWORD_HASH. */
 export async function hashPassword(plain: string): Promise<string> {
   if (typeof plain !== "string" || plain.length === 0) {
-    throw new Error("La contrasena no puede estar vacia");
+    throw new Error("La contraseña no puede estar vacía");
   }
   const salt = randomBytes(SALT_BYTES);
   const key = await derive(plain, salt, KEY_LEN, { N, r: R, p: P });

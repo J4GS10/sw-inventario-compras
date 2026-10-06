@@ -11,6 +11,8 @@
  *  - Bloqueo optimista: toda mutacion de cabecera viaja con `version`.
  */
 
+import { delegacionService } from "./DelegacionService.js";
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { Connection } from "oracledb";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
@@ -23,11 +25,17 @@ import type {
   PageQuery,
   Paginated,
 } from "../../../common/types/Query.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import {
+  validarCabeceraSolicitud,
+  validarLineasSolicitud,
+} from "../../compras/reglasDocumentos.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
 import { ForbiddenError } from "../../../common/errors/AppError.js";
 import { Permisos, hasPermiso } from "../../../common/auth/permissions.js";
-import { CompraReadRepository } from "../../../dal/repositories/com/CompraReadRepository.js";
+import { CompraReadRepository, type HitoTrazabilidad } from "../../../dal/repositories/com/CompraReadRepository.js";
 import { empleadosEnAlcance } from "./alcance.js";
+import { SolicitudPdfService } from "./SolicitudPdfService.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type {
   SolicitudCompra,
@@ -109,6 +117,45 @@ export class SolicitudCompraService extends TransactionalService {
     return found;
   }
 
+  /**
+   * Recorrido completo de la solicitud. Respeta la segregacion de funciones: cada rol ve SOLO los
+   * hitos de los documentos que su trabajo toca (un solicitante ve su solicitud y sus aprobaciones,
+   * no a que proveedor se le compro).
+   */
+  /** PDF de la solicitud (respeta el alcance y que decisiones puede ver quien lo pide). */
+  public async pdf(id: number, ctx: AuditContext): Promise<{ buffer: Buffer; filename: string }> {
+    const hitos = await this.trazabilidad(id, ctx); // 404 si no existe / fuera de alcance
+    return new SolicitudPdfService().generar(id, hitos);
+  }
+
+  public async trazabilidad(id: number, ctx: AuditContext): Promise<readonly HitoTrazabilidad[]> {
+    await this.obtener(id, ctx); // 404 si no existe o esta fuera de su alcance
+    const todos = await this.readRepo.trazabilidadSolicitud(id);
+    const ve = (...permisos: string[]): boolean => hasPermiso(ctx.permisos, "*") || permisos.some((p) => hasPermiso(ctx.permisos, p));
+    return todos.filter((h) => {
+      switch (h.tipo) {
+        case "SOLICITUD":
+        case "APROBACION":
+          return true;
+        case "RFQ":
+          return ve(Permisos.RFQ_GESTIONAR);
+        case "COTIZACION":
+          return ve(Permisos.COTIZACION_GESTIONAR, Permisos.COTIZACION_ADJUDICAR);
+        case "ORDEN":
+          return ve(Permisos.OC_GESTIONAR);
+        case "RECEPCION":
+          return ve(Permisos.RECEPCION_GESTIONAR);
+        case "DEVOLUCION":
+          return ve(Permisos.DEVOLUCION_GESTIONAR);
+        case "FACTURA":
+        case "PAGO":
+          return ve(Permisos.CATALOGO_ADMIN);
+        default:
+          return false;
+      }
+    });
+  }
+
   private empleadosVisibles(ctx?: AuditContext): Promise<readonly number[] | null> {
     return empleadosEnAlcance(ctx, this.readRepo);
   }
@@ -128,14 +175,24 @@ export class SolicitudCompraService extends TransactionalService {
     ctx: AuditContext,
   ): Promise<WithDetails<SolicitudCompra, SolicitudDetalle>> {
     const input = this.parseCrear(body);
+    // La autoria no se delega por el cuerpo: quien tiene un empleado en sesion crea
+    // la solicitud A SU NOMBRE (el admin del sistema, sin empleado, puede indicarlo).
+    const solicitante = input.cabecera["idEmpleadoSolicitante"];
+    if (ctx.empleadoId !== undefined && ctx.empleadoId > 0 && !hasPermiso(ctx.permisos, "*") && solicitante !== undefined && Number(solicitante) !== ctx.empleadoId) {
+      throw new ForbiddenError("Solo puedes crear solicitudes a tu propio nombre");
+    }
+    // Reglas de negocio ANTES del descriptor: reportan todos los problemas de
+    // una vez (fechas vencidas, cantidades <= 0, textos vacios) con mensajes de
+    // negocio, en vez del primer "es obligatorio" generico.
+    const reglas = new Validacion();
+    validarCabeceraSolicitud(reglas, input.cabecera);
+    validarLineasSolicitud(reglas, input.detalles);
+    reglas.lanzarSiHay("Solicitud inválida");
     const cabecera = validateAgainstDescriptor(
       COM_DESCRIPTORS.solicitudCompra,
       { ...input.cabecera, estado: "PENDIENTE_JEFE" },
       "create",
     );
-    if (input.detalles.length === 0) {
-      throw new ValidationError("La solicitud debe incluir al menos una linea");
-    }
     const fkProp = this.repo.detailForeignKeyProp();
     const detalles = input.detalles.map((d) =>
       validateAgainstDescriptor(
@@ -147,6 +204,7 @@ export class SolicitudCompraService extends TransactionalService {
     );
 
     return this.runInTransaction(async ({ conn }) => {
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       const created = (await this.repo.createWithDetails(
         cabecera,
         detalles,
@@ -202,7 +260,7 @@ export class SolicitudCompraService extends TransactionalService {
       }
       if (actual.estado !== "PENDIENTE_JEFE") {
         throw new BusinessRuleError(
-          `La solicitud (${actual.estado}) ya no se puede editar; solo mientras esta pendiente del jefe`,
+          `La solicitud (${actual.estado}) ya no se puede editar; solo mientras está pendiente del jefe`,
         );
       }
       if (
@@ -210,10 +268,13 @@ export class SolicitudCompraService extends TransactionalService {
         expectedVersion === null
       ) {
         throw new ValidationError(
-          'Falta el campo "version" para editar (bloqueo optimista)',
+          'Falta el campo "versión" para editar (bloqueo optimista)',
           [{ field: "version", message: "obligatorio" }],
         );
       }
+      const reglas = new Validacion();
+      validarCabeceraSolicitud(reglas, campos, true);
+      reglas.lanzarSiHay("Solicitud inválida");
       const clean = validateAgainstDescriptor(
         COM_DESCRIPTORS.solicitudCompra,
         campos,
@@ -243,7 +304,7 @@ export class SolicitudCompraService extends TransactionalService {
       }
       if (actual.estado !== "PENDIENTE_JEFE") {
         throw new BusinessRuleError(
-          `La solicitud (${actual.estado}) ya no se puede eliminar; solo mientras esta pendiente del jefe`,
+          `La solicitud (${actual.estado}) ya no se puede eliminar; solo mientras está pendiente del jefe`,
         );
       }
       await this.repo.softDeleteWithDetails(id, ctx, conn);
@@ -265,7 +326,7 @@ export class SolicitudCompraService extends TransactionalService {
       const next = siguientes[0];
       if (next === undefined) {
         throw new BusinessRuleError(
-          `La solicitud en estado ${estado} no admite mas aprobaciones`,
+          `La solicitud en estado ${estado} no admite más aprobaciones`,
         );
       }
       return next;
@@ -278,7 +339,14 @@ export class SolicitudCompraService extends TransactionalService {
     ctx: AuditContext,
   ): Promise<SolicitudCompra> {
     const decision = this.parseDecision(body);
-    return this.transicionar(id, decision, ctx, () => "RECHAZADA");
+    // Rechazar sin decir por que deja al solicitante sin saber que corregir.
+    const motivo = (decision.comentario ?? "").trim();
+    if (motivo.length < 3) {
+      throw new ValidationError("Indica el motivo del rechazo (mínimo 3 caracteres)", [
+        { field: "comentario", message: "El motivo del rechazo es obligatorio" },
+      ]);
+    }
+    return this.transicionar(id, { ...decision, comentario: motivo }, ctx, () => "RECHAZADA");
   }
 
   // ------------------------------------------------------------------------
@@ -294,10 +362,20 @@ export class SolicitudCompraService extends TransactionalService {
     const visibles = await this.empleadosVisibles(ctx);
 
     return this.runInTransaction(async ({ conn, enqueueEvent }) => {
+      // Una sola decision a la vez por solicitud: la segunda ve el estado ya cambiado (409 limpio), no un conflicto de version.
+      await this.repo.lockById(id, conn);
       const actual = (await this.repo.findById(id, conn)) as SolicitudCompra | null;
       if (actual === null) throw new NotFoundError("COM_SOLICITUD_COMPRA", id);
 
-      this.autorizarDecision(ctx, actual.estado);
+      const porDelegacionDe = await this.autorizarDecision(ctx, actual.estado);
+      if (porDelegacionDe !== null && ctx.empleadoId === actual.idEmpleadoSolicitante) {
+        throw new ForbiddenError("Con una delegación no puedes decidir sobre tu propia solicitud");
+      }
+      // La decision se registra a nombre de QUIEN la toma: no se acepta un
+      // idEmpleado ajeno al de la sesion (suplantacion en el historial).
+      if (ctx.empleadoId !== undefined && ctx.empleadoId > 0 && decision.idEmpleado !== ctx.empleadoId) {
+        throw new ForbiddenError("Solo puedes decidir a tu propio nombre");
+      }
       if (
         visibles !== null &&
         !visibles.includes(actual.idEmpleadoSolicitante)
@@ -323,13 +401,15 @@ export class SolicitudCompraService extends TransactionalService {
         conn,
       )) as SolicitudCompra;
 
+      const nota = porDelegacionDe === null ? null : `[por delegación de ${porDelegacionDe}]`;
+      const comentario = nota === null ? (decision.comentario ?? null) : `${decision.comentario ?? ""} ${nota}`.trim();
       await this.registrarWorkflow(
         id,
         actual.estado,
         destino,
         SOLICITUD_NIVEL[destino],
         decision.idEmpleado,
-        decision.comentario ?? null,
+        comentario,
         conn,
       );
 
@@ -344,6 +424,8 @@ export class SolicitudCompraService extends TransactionalService {
           nivelJerarquico: SOLICITUD_NIVEL[destino],
           idEmpleado: decision.idEmpleado,
           userId: ctx.userId,
+          idEmpleadoSolicitante: actual.idEmpleadoSolicitante,
+          comentario,
         },
       );
       return updated;
@@ -351,26 +433,23 @@ export class SolicitudCompraService extends TransactionalService {
   }
 
   /** Autorizacion por estado: jefe en PENDIENTE_JEFE, gerente en PENDIENTE_GERENTE. */
-  private autorizarDecision(ctx: AuditContext, estado: SolicitudEstado): void {
+  private async autorizarDecision(ctx: AuditContext, estado: SolicitudEstado): Promise<string | null> {
+    let requerido: string;
+    let mensaje: string;
     if (estado === "PENDIENTE_JEFE") {
-      if (!hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_JEFE)) {
-        throw new ForbiddenError(
-          "Esta solicitud requiere aprobacion del jefe inmediato (COMPRAS_SOLICITUD_APROBAR_JEFE)",
-        );
-      }
-      return;
+      requerido = Permisos.SOLICITUD_APROBAR_JEFE;
+      mensaje = "Esta solicitud requiere aprobación del jefe inmediato (COMPRAS_SOLICITUD_APROBAR_JEFE)";
+    } else if (estado === "PENDIENTE_GERENTE") {
+      requerido = Permisos.SOLICITUD_APROBAR_GERENTE;
+      mensaje = "Esta solicitud requiere aprobación del gerente de área (COMPRAS_SOLICITUD_APROBAR_GERENTE)";
+    } else {
+      throw new BusinessRuleError(`La solicitud en estado ${estado} no admite decisiones de aprobación`);
     }
-    if (estado === "PENDIENTE_GERENTE") {
-      if (!hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_GERENTE)) {
-        throw new ForbiddenError(
-          "Esta solicitud requiere aprobacion del gerente de area (COMPRAS_SOLICITUD_APROBAR_GERENTE)",
-        );
-      }
-      return;
-    }
-    throw new BusinessRuleError(
-      `La solicitud en estado ${estado} no admite decisiones de aprobacion`,
-    );
+    if (hasPermiso(ctx.permisos, requerido)) return null;
+    // Sin permiso propio: vale si alguien con ese permiso le delego HOY (se verifica en la base: revocar es inmediato).
+    const delegante = (await delegacionService.efectivas(ctx.empleadoId)).find((d) => hasPermiso(d.permisos, requerido));
+    if (delegante === undefined) throw new ForbiddenError(mensaje);
+    return delegante.nombreDelegante;
   }
 
   private async aplicarAjustes(
@@ -384,7 +463,7 @@ export class SolicitudCompraService extends TransactionalService {
     for (const aj of ajustes) {
       if (!validas.has(aj.idSolicitudDetalle)) {
         throw new ValidationError(
-          `El renglon ${aj.idSolicitudDetalle} no pertenece a la solicitud ${idSolicitud}`,
+          `El renglón ${aj.idSolicitudDetalle} no pertenece a la solicitud ${idSolicitud}`,
         );
       }
       if (!(aj.cantidadAutorizada >= 0)) {

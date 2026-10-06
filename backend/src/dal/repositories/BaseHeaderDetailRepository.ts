@@ -55,7 +55,7 @@ export abstract class BaseHeaderDetailRepository<
     super(headerDescriptor);
     if (headerDescriptor.detail === undefined) {
       throw new InternalError(
-        `El descriptor ${headerDescriptor.table} no declara relacion detail`,
+        `El descriptor ${headerDescriptor.table} no declara relación detail`,
       );
     }
     this.detailRepo = new CrudRepository(detailDescriptor);
@@ -121,11 +121,11 @@ export abstract class BaseHeaderDetailRepository<
         };
         const lineId = await this.detailRepo.insertRow(withFk, ctx, c);
         const row = await this.detailRepo.findById(lineId, c);
-        if (row === null) throw new InternalError("Detalle recien creado no encontrado");
+        if (row === null) throw new InternalError("Detalle recién creado no encontrado");
         created.push(row);
       }
       const headerRow = await this.findById(headerId, c);
-      if (headerRow === null) throw new InternalError("Cabecera recien creada no encontrada");
+      if (headerRow === null) throw new InternalError("Cabecera recién creada no encontrada");
       return { header: headerRow, details: created };
     }, conn);
   }

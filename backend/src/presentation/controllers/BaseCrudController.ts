@@ -31,7 +31,7 @@ export interface CrudService<TEntity> {
 function parseId(raw: string | undefined): number {
   const id = Number.parseInt(raw ?? "", 10);
   if (!Number.isInteger(id) || id <= 0) {
-    throw new ValidationError("Parametro de ruta 'id' invalido");
+    throw new ValidationError("Parámetro de ruta 'id' inválido");
   }
   return id;
 }

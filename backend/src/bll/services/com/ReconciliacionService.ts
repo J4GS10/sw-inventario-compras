@@ -139,7 +139,7 @@ export class ReconciliacionService {
     if (factura === null) throw new NotFoundError("CXP_FACTURA_PROVEEDOR", idFacturaProveedor);
     if (factura.idRecepcion === null) {
       throw new BusinessRuleError(
-        "Esta factura no esta ligada a una recepcion; no admite 3-way match.",
+        "Esta factura no está ligada a una recepción; no admite 3-way match.",
       );
     }
     const idRecepcion = factura.idRecepcion;
@@ -216,8 +216,8 @@ export class ReconciliacionService {
     if (recepcion === null) throw new NotFoundError("COM_RECEPCION", idRecepcion);
     if (recepcion.estado === null || !RECEPCION_ACTIVA.includes(recepcion.estado)) {
       throw new BusinessRuleError(
-        `Solo se puede reprocesar una recepcion activa (${RECEPCION_ACTIVA.join("/")}); ` +
-          `esta esta ${String(recepcion.estado)}.`,
+        `Solo se puede reprocesar una recepción activa (${RECEPCION_ACTIVA.join("/")}); ` +
+          `esta está ${String(recepcion.estado)}.`,
       );
     }
     const detalles = (await this.recepcionRepo.listDetails(

@@ -37,7 +37,7 @@ const cases: readonly CrudCase[] = [
     name: "monedas",
     path: "/api/com/monedas",
     idField: "idMoneda",
-    build: () => ({ codigo: rnd().slice(0, 3), nombre: "Moneda " + rnd(), simbolo: "X", activa: true }),
+    build: () => ({ codigo: Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join(""), nombre: "Moneda " + rnd(), simbolo: "X", activa: true }),
     patch: { nombre: "Moneda editada" },
     filterField: "codigo",
   },
@@ -45,7 +45,7 @@ const cases: readonly CrudCase[] = [
     name: "categorias-compra",
     path: "/api/com/categorias-compra",
     idField: "idCategoriaCompra",
-    build: () => ({ nombre: "Categoria " + rnd(), descripcion: "d", estado: "A" }),
+    build: () => ({ nombre: "Categoría " + rnd(), descripcion: "d", estado: "A" }),
     patch: { estado: "I" },
     filterField: "nombre",
   },
@@ -53,7 +53,7 @@ const cases: readonly CrudCase[] = [
     name: "condiciones-pago",
     path: "/api/com/condiciones-pago",
     idField: "idCondicionPago",
-    build: () => ({ nombre: "Condicion " + rnd(), dias: 45 }),
+    build: () => ({ nombre: "Condición " + rnd(), dias: 45 }),
     patch: { dias: 50 },
     filterField: "nombre",
   },
@@ -161,7 +161,7 @@ beforeAll(async () => {
       fechaEntregaEsperada: new Date(Date.now() + 14 * 864e5).toISOString(),
       lineas: [
         {
-          descripcion: "OC de prueba (catalogos seguimiento/excepciones)",
+          descripcion: "OC de prueba (catálogos seguimiento/excepciones)",
           cantidad: 1,
           idUnidadMedida,
           precioUnitario: 10,
@@ -178,7 +178,7 @@ afterAll(async () => {
   await stopTestApp(app);
 });
 
-describe.each(cases)("CRUD catalogo: $name", (c) => {
+describe.each(cases)("CRUD catálogo: $name", (c) => {
   let createdId = 0;
   let created: Record<string, unknown> = {};
 
@@ -226,7 +226,7 @@ describe.each(cases)("CRUD catalogo: $name", (c) => {
     expect(after.statusCode).toBe(404);
   });
 
-  it("5. rechaza cuerpo invalido (POST 422)", async () => {
+  it("5. rechaza cuerpo inválido (POST 422)", async () => {
     const res = await app.inject({ method: "POST", url: c.path, headers: H, payload: {} });
     expect(res.statusCode).toBe(422);
   });

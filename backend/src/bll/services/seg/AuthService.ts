@@ -8,6 +8,7 @@
  * Patron Singleton.
  */
 
+import { delegacionService } from "../com/DelegacionService.js";
 import { env } from "../../../common/config/EnvConfig.js";
 import {
   LockedError,
@@ -29,6 +30,8 @@ export interface SesionUsuario {
   readonly nombre: string;
   readonly roles: readonly string[];
   readonly permisos: readonly string[];
+  /** Nombres de quienes le delegaron hoy sus aprobaciones (solo informativo para la interfaz). */
+  readonly delegadoDe?: readonly string[];
 }
 
 /** Contexto de la peticion util para la bitacora. */
@@ -38,10 +41,13 @@ export interface AuthRequestInfo {
 
 /** Numero de intentos fallidos consecutivos que bloquea la cuenta. */
 export const MAX_INTENTOS_FALLIDOS = 5;
+/** Hash valido que nunca coincide: equipara el tiempo de respuesta cuando el usuario no existe. */
+const HASH_FICTICIO =
+  "scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 /** Minutos que dura el bloqueo temporal. */
 export const VENTANA_BLOQUEO_MIN = 15;
 
-const CREDENCIALES_INVALIDAS = "Usuario o contrasena invalidos";
+const CREDENCIALES_INVALIDAS = "Usuario o contraseña inválidos";
 const TOKEN_TTL_SECONDS = 8 * 3600;
 
 export class AuthService {
@@ -70,7 +76,7 @@ export class AuthService {
     const pass = typeof password === "string" ? password : "";
     if (user === "") throw new ValidationError("Usuario requerido");
     if (pass === "") {
-      throw new ValidationError("Contrasena requerida", [
+      throw new ValidationError("Contraseña requerida", [
         { field: "password", message: "requerido" },
       ]);
     }
@@ -79,6 +85,9 @@ export class AuthService {
     const found = await this.repo.findByUsername(user);
 
     if (found === null) {
+      // Mismo coste que un login real (hash scrypt) para que el TIEMPO de respuesta
+      // no revele si el usuario existe.
+      await verifyPassword(pass, HASH_FICTICIO);
       // Aun sin cuenta valida dejamos huella; respuesta generica (no se revela
       // si el usuario existe).
       await this.repo.registrarFallo({
@@ -98,7 +107,7 @@ export class AuthService {
         ip,
         detalle: "cuenta inactiva",
       });
-      throw new UnauthorizedError("La cuenta esta inactiva");
+      throw new UnauthorizedError("La cuenta está inactiva");
     }
 
     this.assertNoBloqueada(found.fechaBloqueo);
@@ -143,7 +152,22 @@ export class AuthService {
       env().auth.jwtSecret,
       TOKEN_TTL_SECONDS,
     );
-    return { token, sesion };
+    return { token, sesion: await this.conDelegaciones(sesion) };
+  }
+
+  /**
+   * Suma a la sesion que ve la INTERFAZ los permisos de aprobacion que el usuario tiene HOY por
+   * delegacion. El token no los lleva: la autorizacion real la decide el servidor en cada decision.
+   */
+  private async conDelegaciones(sesion: SesionUsuario): Promise<SesionUsuario> {
+    const delegadas = await delegacionService.efectivas(sesion.idEmpleado);
+    if (delegadas.length === 0) return sesion;
+    const extra = await delegacionService.permisosDeAprobacionDelegados(sesion.idEmpleado);
+    return {
+      ...sesion,
+      permisos: [...new Set([...sesion.permisos, ...extra])],
+      delegadoDe: delegadas.map((d) => d.nombreDelegante),
+    };
   }
 
   /** Datos de la sesion a partir del id de usuario (para GET /me). */
@@ -151,11 +175,11 @@ export class AuthService {
     const base = await this.repo.findSesionById(idUsuario);
     if (base === null) throw new UnauthorizedError();
     const accesos = await this.repo.loadAccesos(idUsuario);
-    return {
+    return this.conDelegaciones({
       ...base,
       roles: accesos.roles,
       permisos: this.efectivos(accesos.roles, accesos.permisos),
-    };
+    });
   }
 
   /** Cierra sesion (JWT es stateless): solo deja la marca en la bitacora. */

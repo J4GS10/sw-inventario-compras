@@ -65,3 +65,36 @@ Una sola descripción por tabla — `EntityDescriptor` en
 
 Añadir un catálogo nuevo = 1 descriptor + 1 fila en `presentation/routes/com/index.ts`
 + 1 config en `frontend/src/modules/compras/catalogPages.tsx`. Sin handlers, sin SQL.
+
+## Servidor oficial (producción) y pruebas
+
+```bash
+cp .env.example .env     # completa DB_PASSWORD y JWT_SECRET
+pnpm oficial             # migra el esquema, compila y levanta backend (:3000) + frontend (:8443) en modo producción
+pnpm oficial status|stop
+pnpm qa:oficial          # TODAS las pruebas contra ese servidor (API, seguridad OWASP, interfaz con Playwright)
+```
+
+Usa tu Oracle local (`.env`) y MinIO (`pnpm minio`). En producción no hay selector de perfiles ni atajo
+`X-Dev-User`: se ingresa con usuario y contraseña (usuarios de demostración: `admin`, `solicitante`, `jefe`,
+`gerente`, `comprador`, `financiero`, `bodega`, `auditor`; contraseña de demostración en `database/dml/02_seg_rbac.sql`
+y `docs/`). **Cámbialas antes de exponer el sistema.**
+
+## Base de datos (Oracle 21c)
+
+- `database/ddl/SCRIPT_DDL.sql`: esquema canónico (105 tablas: NOM_, SEG_, INV_, COM_, CXP_, CXC_...), incluye
+  `SEG_BORRADOR_USUARIO` y `SEG_DELEGACION_APROBACION`.
+- `database/dml/`: semillas (maestros, RBAC, catálogos de compras, alcance por departamento).
+- `pnpm db:deploy` verifica el esquema, aplica las migraciones idempotentes de `backend/scripts/deploy.ts` y siembra.
+- No se versionan volcados de datos ni credenciales.
+
+## Tecnologías
+
+Node 20+, pnpm 9 (monorepo), TypeScript estricto · Backend: Fastify 5, `oracledb` (Thin), PDFKit, S3 (MinIO) ·
+Frontend: React 19, Vite 6, Tailwind v4, Vitest, Playwright (QA) · Base de datos: Oracle 21c ·
+Docker Compose (Oracle gvenzl + MinIO + backend + nginx).
+
+## Documentación
+
+`docs/` (estado y continuidad por etapa: `13-AUDITORIA-FRONTEND-UX.md` es la más reciente, `12-SEGURIDAD-PENTEST.md`),
+`skills/` (stack, arquitectura de 6 capas y guía de diseño).

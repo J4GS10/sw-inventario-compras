@@ -58,7 +58,7 @@ afterAll(async () => {
   await stopTestApp(app);
 });
 
-describe("Regresion: POST de accion sin cuerpo + auditoria con usuario real", () => {
+describe("Regresión: POST de acción sin cuerpo + auditoría con usuario real", () => {
   it("crea una solicitud con X-Dev-User=1 y puebla CREADO_POR (auditoria real)", async () => {
     const segUser = await scalar("SELECT COUNT(*) V FROM SEG_USUARIO WHERE ID_USUARIO=1");
     expect(segUser).toBe(1); // 00_seed_base.sql debe haber creado el usuario de sistema
@@ -73,7 +73,7 @@ describe("Regresion: POST de accion sin cuerpo + auditoria con usuario real", ()
           idSucursal: ids.sucursal,
           idGrupoCompra: ids.grupoCompra,
           idTerminoEntrega: ids.terminoEntrega,
-          justificacion: "Regresion auditoria",
+          justificacion: "Regresión auditoría",
           prioridad: 3,
         },
         detalles: [
@@ -156,7 +156,7 @@ describe("Regresion: POST de accion sin cuerpo + auditoria con usuario real", ()
     expect((res.json() as { data: { estado: string } }).data.estado).toBe("CERRADO");
   });
 
-  it("no permite registrar una cotizacion nueva contra un RFQ ya CERRADO (409)", async () => {
+  it("no permite registrar una cotización nueva contra un RFQ ya CERRADO (409)", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/cotizaciones",

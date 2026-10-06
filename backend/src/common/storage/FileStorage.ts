@@ -7,6 +7,30 @@
 
 import { env } from "../config/EnvConfig.js";
 import { logger } from "../logging/Logger.js";
+import { ServiceUnavailableError } from "../errors/AppError.js";
+
+/**
+ * Traduce un fallo del SDK de S3/MinIO a un error semantico. "No hay conexion",
+ * credenciales o bucket inexistente NO son un bug del sistema: el usuario debe
+ * leer que el ALMACENAMIENTO esta caido (503 reintentable), no "error interno".
+ */
+export function traducirErrorAlmacenamiento(error: unknown): Error {
+  const e = error as { name?: string; code?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+  const texto = `${e.name ?? ""} ${e.code ?? ""} ${e.message ?? ""}`;
+  if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|TimeoutError|socket hang up|getaddrinfo|ERR_SOCKET|NetworkingError|Unable to connect/i.test(texto)) {
+    return new ServiceUnavailableError(
+      "El almacenamiento de archivos (MinIO) no está disponible. Inícialo con 'pnpm minio' (o iniciar-sistema.bat) y reintenta; el resto del sistema sigue funcionando.",
+      { cause: error },
+    );
+  }
+  if (/InvalidAccessKeyId|SignatureDoesNotMatch|AccessDenied|InvalidSecurity/i.test(texto)) {
+    return new ServiceUnavailableError(
+      "El almacenamiento de archivos rechazo las credenciales configuradas (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).",
+      { cause: error },
+    );
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
 
 export interface StoredFile {
   /** URL para descargar/compartir el archivo (presignada en S3). */
@@ -22,6 +46,8 @@ export interface FileStorage {
   get(key: string): Promise<Buffer | null>;
   /** Borra un archivo. Idempotente: no falla si la clave no existe. */
   remove(key: string): Promise<void>;
+  /** Comprueba que el almacenamiento responde (lanza si no). Opcional: memoria siempre responde. */
+  ping?(): Promise<void>;
 }
 
 /** Fallback en memoria: guarda el ultimo archivo por clave (para dev/pruebas). */
@@ -54,16 +80,56 @@ class S3FileStorage implements FileStorage {
     private readonly publicBaseUrl: string | undefined,
   ) {}
 
-  private async client(): Promise<
-    import("@aws-sdk/client-s3").S3Client
-  > {
+  private cached: import("@aws-sdk/client-s3").S3Client | undefined;
+
+  private bucketListo = false;
+
+  /**
+   * Un solo cliente por proceso, con TIMEOUTS: sin ellos, con MinIO apagado el SDK
+   * reintentaba ~30 s y la pantalla se quedaba "cargando" sin decir nada.
+   */
+  private async client(): Promise<import("@aws-sdk/client-s3").S3Client> {
+    if (this.cached !== undefined) return this.cached;
     const { S3Client } = await import("@aws-sdk/client-s3");
-    return new S3Client({
+    const { NodeHttpHandler } = await import("@smithy/node-http-handler");
+    this.cached = new S3Client({
       region: this.region,
+      maxAttempts: 2,
+      requestHandler: new NodeHttpHandler({ connectionTimeout: 2500, socketTimeout: 20000 }),
       ...(this.endpoint !== undefined
         ? { endpoint: this.endpoint, forcePathStyle: true }
         : {}),
     });
+    return this.cached;
+  }
+
+  /** Crea el bucket si no existe (primer arranque con MinIO recien instalado). */
+  private async asegurarBucket(): Promise<void> {
+    if (this.bucketListo) return;
+    const { HeadBucketCommand, CreateBucketCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.client();
+    try {
+      await client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+    } catch (error) {
+      const st = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if (st === 404 || (error as { name?: string }).name === "NotFound") {
+        await client.send(new CreateBucketCommand({ Bucket: this.bucket }));
+        logger().info("Bucket de adjuntos creado", { bucket: this.bucket });
+      } else {
+        throw error;
+      }
+    }
+    this.bucketListo = true;
+  }
+
+  /** Round-trip real al almacenamiento (readiness). */
+  public async ping(): Promise<void> {
+    try {
+      this.bucketListo = false; // readiness: siempre un round-trip real, no el resultado en cache
+      await this.asegurarBucket();
+    } catch (error) {
+      throw traducirErrorAlmacenamiento(error);
+    }
   }
 
   public async save(
@@ -76,7 +142,14 @@ class S3FileStorage implements FileStorage {
     );
     const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
 
-    const client = await this.client();
+    let client: import("@aws-sdk/client-s3").S3Client;
+    try {
+      await this.asegurarBucket();
+      client = await this.client();
+    } catch (error) {
+      throw traducirErrorAlmacenamiento(error);
+    }
+    try {
     await client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -85,6 +158,9 @@ class S3FileStorage implements FileStorage {
         ContentType: contentType,
       }),
     );
+    } catch (error) {
+      throw traducirErrorAlmacenamiento(error);
+    }
 
     const url =
       this.publicBaseUrl !== undefined
@@ -116,16 +192,20 @@ class S3FileStorage implements FileStorage {
       ) {
         return null;
       }
-      throw error;
+      throw traducirErrorAlmacenamiento(error);
     }
   }
 
   public async remove(key: string): Promise<void> {
     const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-    const client = await this.client();
-    await client.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
+    try {
+      const client = await this.client();
+      await client.send(
+        new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+    } catch (error) {
+      throw traducirErrorAlmacenamiento(error);
+    }
   }
 }
 

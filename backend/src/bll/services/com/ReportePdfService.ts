@@ -22,7 +22,7 @@ function pct(n: number): string {
   return `${n.toLocaleString("es-GT", { maximumFractionDigits: 1 })} %`;
 }
 function rango(desde: string | null, hasta: string | null): string {
-  if (desde === null && hasta === null) return "Todo el historico";
+  if (desde === null && hasta === null) return "Todo el histórico";
   return `Del ${desde ?? "inicio"} al ${hasta ?? "hoy"}`;
 }
 
@@ -39,16 +39,16 @@ export class ReportePdfService {
     pdf.title("Gasto por proveedor", rango(d.desde, d.hasta));
     pdf.kpiBand([
       { label: "Monto total (GTQ)", value: money(d.montoTotal), tone: "brand" },
-      { label: "Ordenes de compra", value: String(d.ordenesTotal) },
+      { label: "Órdenes de compra", value: String(d.ordenesTotal) },
       { label: "Proveedores", value: String(d.proveedores.length) },
     ]);
 
     if (d.proveedores.length === 0) {
-      pdf.note("No hay ordenes de compra emitidas en el periodo seleccionado.");
+      pdf.note("No hay órdenes de compra emitidas en el periodo seleccionado.");
       return { buffer: await pdf.build(), filename: this.filename("gasto-proveedor", desde, hasta) };
     }
 
-    pdf.sectionTitle("Distribucion del gasto (top 12)");
+    pdf.sectionTitle("Distribución del gasto (top 12)");
     pdf.barChart(
       d.proveedores.slice(0, 12).map((p) => ({ label: p.proveedor, value: p.monto })),
       moneyCompact,
@@ -72,38 +72,38 @@ export class ReportePdfService {
   public async ocPendientesRecibir(): Promise<{ buffer: Buffer; filename: string }> {
     const d = await this.reportes.ocPendientesRecibir();
     const pdf = new PdfBuilder({
-      title: "Ordenes pendientes de recibir",
-      footer: "ERP Corporativo · Ordenes de compra pendientes de recibir",
+      title: "Órdenes pendientes de recibir",
+      footer: "ERP Corporativo · Órdenes de compra pendientes de recibir",
     });
 
-    pdf.title("Ordenes de compra pendientes de recibir", `Corte al ${new Date().toLocaleDateString("es-GT")}`);
+    pdf.title("Órdenes de compra pendientes de recibir", `Corte al ${new Date().toLocaleDateString("es-GT")}`);
     pdf.kpiBand([
-      { label: "Ordenes pendientes", value: String(d.totalOrdenes), tone: "brand" },
+      { label: "Órdenes pendientes", value: String(d.totalOrdenes), tone: "brand" },
       { label: "Vencidas", value: String(d.totalVencidas), tone: d.totalVencidas > 0 ? "warning" : "success" },
-      { label: "Monto en transito (GTQ)", value: money(d.montoTotal) },
+      { label: "Monto en tránsito (GTQ)", value: money(d.montoTotal) },
     ]);
 
     if (d.ordenes.length === 0) {
-      pdf.note("No hay ordenes de compra pendientes de recibir.", "ok");
+      pdf.note("No hay órdenes de compra pendientes de recibir.", "ok");
       return { buffer: await pdf.build(), filename: this.filename("oc-pendientes") };
     }
 
-    pdf.sectionTitle("Ordenes por dias de atraso (top 12)");
+    pdf.sectionTitle("Órdenes por días de atraso (top 12)");
     pdf.barChart(
       d.ordenes.slice(0, 12).map((o) => ({ label: `OC-${o.idOrdenCompra} · ${o.proveedor}`, value: o.diasVencida })),
       (n) => `${n} d`,
     );
 
-    pdf.sectionTitle("Detalle de ordenes pendientes");
+    pdf.sectionTitle("Detalle de órdenes pendientes");
     pdf.table(
       [
         { header: "OC", width: 40, align: "right" },
         { header: "Proveedor", width: 140 },
         { header: "Estado", width: 90 },
-        { header: "Emision", width: 62 },
+        { header: "Emisión", width: 62 },
         { header: "Entrega esp.", width: 62 },
-        { header: "Dias trans.", width: 55, align: "right" },
-        { header: "Dias venc.", width: 50, align: "right" },
+        { header: "Días trans.", width: 55, align: "right" },
+        { header: "Días venc.", width: 50, align: "right" },
       ],
       d.ordenes.map((o) => [
         String(o.idOrdenCompra),
@@ -122,14 +122,14 @@ export class ReportePdfService {
   public async desempenoProveedores(desde?: string, hasta?: string): Promise<{ buffer: Buffer; filename: string }> {
     const d = await this.reportes.desempenoProveedores(desde, hasta);
     const pdf = new PdfBuilder({
-      title: "Desempeno de proveedores",
-      footer: "ERP Corporativo · Desempeno de proveedores",
+      title: "Desempeño de proveedores",
+      footer: "ERP Corporativo · Desempeño de proveedores",
     });
 
-    pdf.title("Desempeno de proveedores", rango(d.desde, d.hasta));
+    pdf.title("Desempeño de proveedores", rango(d.desde, d.hasta));
     pdf.kpiBand([
       {
-        label: "Dias promedio de entrega",
+        label: "Días promedio de entrega",
         value: d.diasPromedioGeneral === null ? "-" : `${d.diasPromedioGeneral} d`,
         tone: "brand",
       },
@@ -141,7 +141,7 @@ export class ReportePdfService {
       return { buffer: await pdf.build(), filename: this.filename("desempeno-proveedores", desde, hasta) };
     }
 
-    pdf.sectionTitle("Tiempo de entrega por proveedor (dias, menor es mejor)");
+    pdf.sectionTitle("Tiempo de entrega por proveedor (días, menor es mejor)");
     pdf.barChart(
       d.proveedores
         .filter((p) => p.diasPromedioEntrega !== null)
@@ -155,7 +155,7 @@ export class ReportePdfService {
       [
         { header: "Proveedor", width: 190 },
         { header: "OC recibidas", width: 70, align: "right" },
-        { header: "Dias prom. entrega", width: 90, align: "right" },
+        { header: "Días prom. entrega", width: 90, align: "right" },
         { header: "Recibido", width: 70, align: "right" },
         { header: "% Rechazo", width: 79, align: "right" },
       ],
@@ -178,10 +178,10 @@ export class ReportePdfService {
       footer: "ERP Corporativo · Riesgo de proveedores",
     });
 
-    pdf.title("Riesgo de proveedores", "Historico completo (no admite rango de fechas)");
+    pdf.title("Riesgo de proveedores", "Histórico completo (no admite rango de fechas)");
     pdf.kpiBand([
       {
-        label: "Dias promedio de entrega (general)",
+        label: "Días promedio de entrega (general)",
         value: d.diasPromedioGeneral === null ? "-" : `${d.diasPromedioGeneral} d`,
       },
       { label: "Proveedores evaluados", value: String(d.proveedores.length) },
@@ -193,11 +193,11 @@ export class ReportePdfService {
     ]);
 
     if (d.proveedores.length === 0) {
-      pdf.note("Aun no hay proveedores con ordenes recibidas para evaluar.");
+      pdf.note("Aún no hay proveedores con órdenes recibidas para evaluar.");
       return { buffer: await pdf.build(), filename: "riesgo-proveedores.pdf" };
     }
 
-    pdf.sectionTitle("Score de confiabilidad (0-100, mas alto es mejor)");
+    pdf.sectionTitle("Score de confiabilidad (0-100, más alto es mejor)");
     pdf.barChart(
       d.proveedores.slice(0, 12).map((p) => ({ label: p.proveedor, value: p.score })),
       (n) => String(n),
@@ -207,9 +207,9 @@ export class ReportePdfService {
     pdf.table(
       [
         { header: "Proveedor", width: 150 },
-        { header: "Calificacion", width: 70 },
+        { header: "Calificación", width: 70 },
         { header: "OC recibidas", width: 65, align: "right" },
-        { header: "Dias prom.", width: 55, align: "right" },
+        { header: "Días prom.", width: 55, align: "right" },
         { header: "% Rechazo", width: 60, align: "right" },
         { header: "Escasez", width: 55, align: "right" },
         { header: "Score", width: 44, align: "right" },
@@ -221,14 +221,14 @@ export class ReportePdfService {
         String(p.ordenesRecibidas),
         p.diasPromedioEntrega === null ? "-" : `${p.diasPromedioEntrega} d`,
         pct(p.porcentajeRechazo),
-        p.tieneArticulosEnEscasez ? "Si" : "No",
+        p.tieneArticulosEnEscasez ? "Sí" : "No",
         String(p.score),
         p.nivel === "alto" ? "Alto" : p.nivel === "medio" ? "Medio" : "Bajo",
       ]),
     );
 
     pdf.note(
-      "Score: parte de 100, resta por tardanza relativa al promedio y por % de rechazo, ajusta por calificacion declarada. 'Escasez' es informativo (no penaliza el score): el proveedor suministra articulos con alerta activa.",
+      "Score: parte de 100, resta por tardanza relativa al promedio y por % de rechazo, ajusta por calificación declarada. 'Escasez' es informativo (no penaliza el score): el proveedor suministra artículos con alerta activa.",
     );
 
     return { buffer: await pdf.build(), filename: "riesgo-proveedores.pdf" };

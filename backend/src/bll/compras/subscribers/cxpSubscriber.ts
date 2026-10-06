@@ -59,7 +59,7 @@ async function onRecepcionRegistrada(
       conn,
     );
     if (existente.data.length > 0) {
-      logger().info("CxP ya alimentada para esta recepcion (idempotente)", {
+      logger().info("CxP ya alimentada para esta recepción (idempotente)", {
         idRecepcion: payload.idRecepcion,
       });
       return;
@@ -104,7 +104,7 @@ async function onRecepcionRegistrada(
       conn,
     );
 
-    logger().info("CxP alimentada por recepcion", {
+    logger().info("CxP alimentada por recepción", {
       idRecepcion: payload.idRecepcion,
       idFacturaProveedor: factura.idFacturaProveedor,
       montoTotal,
@@ -140,7 +140,7 @@ async function onRecepcionReversada(
     );
     await facturas.softDelete(idFactura, sys, conn);
 
-    logger().info("CxP anulada por reversa de recepcion", {
+    logger().info("CxP anulada por reversa de recepción", {
       idRecepcion: payload.idRecepcion,
       idFacturaProveedor: idFactura,
     });

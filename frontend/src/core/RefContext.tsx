@@ -86,6 +86,15 @@ const SOURCES: Record<RefKind, Source> = {
   departamento: { path: "/api/com/ref/departamentos", id: "idDepartamento", label: (r) => s(r["nombre"]) },
 };
 
+const SUSTANTIVO: Partial<Record<RefKind, string>> = {
+  proveedor: "Proveedor",
+  articulo: "Artículo",
+  empleado: "Empleado",
+  bodega: "Bodega",
+  sucursal: "Sucursal",
+  moneda: "Moneda",
+};
+
 const ALL_KINDS = Object.keys(SOURCES) as RefKind[];
 
 export interface Refs {
@@ -140,6 +149,34 @@ export function RefProvider(props: { children: ReactNode }): React.ReactElement 
     };
   }, []);
 
+  // Ids que no vinieron en la carga inicial (catalogo paginado, registro inactivo...): se resuelven de a uno, bajo demanda.
+  const pedidos = useRef<Set<string>>(new Set());
+  const fallidos = useRef<Set<string>>(new Set());
+  const resolverUno = (kind: RefKind, n: number): void => {
+    const clave = `${kind}:${n}`;
+    if (pedidos.current.has(clave)) return;
+    pedidos.current.add(clave);
+    const src = SOURCES[kind];
+    // Consulta por filtro (200 con lista vacia si no existe: sin 404 en consola). Los /ref/* no filtran: no se resuelven.
+    if (src.path.includes("/ref/")) {
+      fallidos.current.add(clave);
+      return;
+    }
+    void http
+      .list<Record<string, unknown>>(src.path, { pageSize: 1, [`${src.id}__eq`]: String(n) })
+      .then((page) => {
+        const row = page.data[0];
+        if (row === undefined) throw new Error("no existe");
+        const texto = src.label(row);
+        if (texto === "") throw new Error("sin etiqueta");
+        const m = maps.current.get(kind) ?? new Map<number, string>();
+        m.set(n, texto);
+        maps.current.set(kind, m);
+      })
+      .catch(() => fallidos.current.add(clave))
+      .finally(() => setTick((t) => t + 1));
+  };
+
   const value = useMemo<Refs>(() => {
     void tick;
     return {
@@ -151,7 +188,12 @@ export function RefProvider(props: { children: ReactNode }): React.ReactElement 
         const n = Number(id);
         const m = maps.current.get(kind as RefKind);
         const hit = m?.get(n);
-        return hit ?? (Number.isFinite(n) ? `#${n}` : String(id));
+        if (hit !== undefined) return hit;
+        if (!Number.isFinite(n)) return String(id);
+        const clave = `${kind as RefKind}:${n}`;
+        if (fallidos.current.has(clave)) return `${SUSTANTIVO[kind as RefKind] ?? "Registro"} #${n} (no disponible)`;
+        if (ready && SOURCES[kind as RefKind] !== undefined) resolverUno(kind as RefKind, n);
+        return "…";
       },
     };
   }, [ready, tick]);

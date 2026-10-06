@@ -12,6 +12,8 @@
 import { NotFoundError } from "../../../common/errors/AppError.js";
 import { env } from "../../../common/config/EnvConfig.js";
 import { PdfBuilder } from "../../../common/pdf/PdfBuilder.js";
+import { aDia } from "../../../common/util/fechas.js";
+import { importeALetras } from "../../../common/util/numeroALetras.js";
 import { fileStorage, type StoredFile } from "../../../common/storage/FileStorage.js";
 import {
   CompraReadRepository,
@@ -21,6 +23,41 @@ import {
 
 function money(n: number): string {
   return n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/** Cantidad sin ceros de relleno (12 -> "12", 2.5 -> "2.5"). */
+function qty(n: number): string {
+  return n.toLocaleString("es-GT", { maximumFractionDigits: 4 });
+}
+
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/** "05 oct 2026" a partir de un ISO (dia de calendario, sin correr de dia por zona horaria). */
+function fechaLarga(iso: string): string {
+  const d = aDia(iso);
+  if (d === null) return "—";
+  return `${d.slice(8, 10)} ${MESES[Number(d.slice(5, 7)) - 1] ?? ""} ${d.slice(0, 4)}`;
+}
+
+function estadoVisual(estado: string): { texto: string; tono: "ok" | "warn" | "bad" | "neutral" } {
+  const texto = estado.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  if (estado === "RECIBIDA_COMPLETA") return { texto, tono: "ok" };
+  if (estado === "CANCELADA" || estado === "RECHAZADA") return { texto, tono: "bad" };
+  if (estado === "EMITIDA" || estado === "RECIBIDA_PARCIAL") return { texto, tono: "warn" };
+  return { texto, tono: "neutral" };
+}
+
+function nombreMoneda(codigo: string): [string, string] {
+  switch (codigo) {
+    case "GTQ":
+      return ["QUETZALES", "QUETZAL"];
+    case "USD":
+      return ["DOLARES", "DOLAR"];
+    case "EUR":
+      return ["EUROS", "EURO"];
+    default:
+      return [codigo, codigo];
+  }
 }
 
 export class OrdenCompraPdfService {
@@ -61,9 +98,10 @@ export class OrdenCompraPdfService {
     lineas: readonly OrdenCompraPdfLineaRow[],
   ): Promise<Buffer> {
     const empresa = env().empresa;
+    const numero = `OC-${String(h.idOrdenCompra).padStart(6, "0")}`;
     const pdf = new PdfBuilder({
-      title: `Orden de compra OC-${h.idOrdenCompra}`,
-      footer: `${empresa.nombre} · Orden de compra`,
+      title: `Orden de compra ${numero}`,
+      footer: `${empresa.nombre} · Orden de compra ${numero}`,
       brand: empresa.nombre,
     });
 
@@ -76,81 +114,95 @@ export class OrdenCompraPdfService {
     }
     const montoTotal = montoNeto + montoImpuesto;
 
-    pdf.title(
-      `Orden de compra — OC-${h.idOrdenCompra}`,
-      `Estado ${h.estado}   ·   Proveedor ${h.proveedor}   ·   Emitida ${h.fechaEmision.slice(0, 10)}`,
-    );
+    pdf.letterhead({
+      empresa: {
+        nombre: empresa.nombre,
+        lineas: [`NIT ${empresa.nit}`, empresa.direccion, `Tel. ${empresa.telefono}`],
+      },
+      documento: "ORDEN DE COMPRA",
+      numero,
+      meta: [
+        ["Fecha de emisión", fechaLarga(h.fechaEmision)],
+        ["Entrega esperada", fechaLarga(h.fechaEntregaEsperada)],
+        ["Referencia", h.numeroReferencia ?? "—"],
+      ],
+      estado: estadoVisual(h.estado),
+    });
 
-    // Las dos partes del documento, lado a lado — como en una orden de
-    // compra o factura real, no apiladas una tras otra.
+    // Las dos partes, lado a lado: a quien se le compra y bajo que condiciones.
     pdf.twoColumn(
       {
-        title: "Empresa emisora",
+        title: "Proveedor",
         pairs: [
-          ["Razon social", empresa.nombre],
-          ["NIT", empresa.nit],
-          ["Direccion", empresa.direccion],
-          ["Telefono", empresa.telefono],
+          ["Razón social", h.proveedor],
+          ["NIT", h.proveedorNit],
+          ["Dirección", h.proveedorDireccion ?? "—"],
+          ["Teléfono", h.proveedorTelefono ?? "—"],
+          ["Correo", h.proveedorEmail ?? "—"],
         ],
       },
       {
-        title: "Datos del proveedor",
+        title: "Condiciones",
         pairs: [
-          ["Razon social", h.proveedor],
-          ["NIT", h.proveedorNit],
-          ["Direccion", h.proveedorDireccion ?? "-"],
-          ["Telefono", h.proveedorTelefono ?? "-"],
-          ["Correo", h.proveedorEmail ?? "-"],
+          ["Moneda", `${h.monedaCodigo}${h.monedaSimbolo !== null ? ` (${h.monedaSimbolo})` : ""}`],
+          ["Tasa de cambio", h.tasaCambio.toFixed(5)],
+          ["Entrega esperada", fechaLarga(h.fechaEntregaEsperada)],
+          ["Autoriza", h.autoriza],
         ],
       },
     );
 
-    pdf.sectionTitle("Datos de la orden");
-    pdf.keyValues([
-      ["Fecha de emision", h.fechaEmision.slice(0, 10)],
-      ["Entrega esperada", h.fechaEntregaEsperada.slice(0, 10)],
-      ["Moneda", `${h.monedaCodigo} (tasa ${h.tasaCambio.toFixed(5)})`],
-      ["Referencia", h.numeroReferencia ?? "-"],
-    ]);
-
-    pdf.sectionTitle("Detalle de articulos");
+    pdf.sectionTitle("Detalle de artículos");
     pdf.table(
       [
-        { header: "Codigo", width: 55 },
-        { header: "Descripcion", width: 150 },
+        { header: "#", width: 22, align: "center" },
+        { header: "Código", width: 58 },
+        { header: "Descripción", width: 139 },
         { header: "Cant.", width: 40, align: "right" },
-        { header: "U.M.", width: 40 },
-        { header: "P. unit.", width: 55, align: "right" },
-        { header: "Desc%", width: 42, align: "right" },
-        { header: "Imp%", width: 40, align: "right" },
-        { header: "Subtotal", width: 77, align: "right" },
+        { header: "U.M.", width: 38 },
+        { header: "P. unit.", width: 58, align: "right" },
+        { header: "Desc.", width: 36, align: "right" },
+        { header: "IVA", width: 32, align: "right" },
+        { header: "Subtotal", width: 76, align: "right" },
       ],
-      lineas.map((l) => [
-        l.articuloCodigo ?? "-",
+      lineas.map((l, i) => [
+        String(i + 1),
+        l.articuloCodigo ?? "—",
         l.descripcion,
-        String(l.cantidad),
+        qty(l.cantidad),
         l.unidadMedida,
         money(l.precioUnitario),
-        String(l.porcentajeDescuento),
-        String(l.porcentajeImpuesto),
-        `${sim} ${money(l.subtotal)}`,
+        l.porcentajeDescuento > 0 ? `${qty(l.porcentajeDescuento)}%` : "—",
+        l.porcentajeImpuesto > 0 ? `${qty(l.porcentajeImpuesto)}%` : "—",
+        money(l.subtotal),
       ]),
     );
 
-    // Los totales van DESPUES del detalle (convencion de factura/orden de
-    // compra: se leen de arriba hacia abajo y se suman al final), no antes.
-    pdf.kpiBand([
-      { label: `Monto neto (${h.monedaCodigo})`, value: `${sim} ${money(montoNeto)}` },
-      { label: "Impuesto", value: `${sim} ${money(montoImpuesto)}` },
-      { label: "Total a pagar", value: `${sim} ${money(montoTotal)}`, tone: "brand" },
-    ]);
+    // Totales al final (se leen de arriba hacia abajo y se suman al cierre).
+    const [plural, singular] = nombreMoneda(h.monedaCodigo);
+    pdf.totalsBox(
+      [
+        { label: `Subtotal (${h.monedaCodigo})`, value: `${sim} ${money(montoNeto)}` },
+        { label: "Impuesto (IVA)", value: `${sim} ${money(montoImpuesto)}` },
+      ],
+      { label: "Total a pagar", value: `${sim} ${money(montoTotal)}` },
+      importeALetras(montoTotal, plural, singular),
+    );
 
     if (h.monedaCodigo !== "GTQ") {
-      pdf.note(`Referencial en GTQ: Q ${money(montoTotal * h.tasaCambio)} (tasa ${h.tasaCambio.toFixed(5)}).`);
+      pdf.note(`Referencial en quetzales: Q ${money(montoTotal * h.tasaCambio)} (tasa ${h.tasaCambio.toFixed(5)}).`);
     }
-    pdf.note("Documento generado por el sistema para entrega al proveedor.", "ok");
 
-    pdf.signatureBlock([{ label: "Autoriza la orden", name: h.autoriza }]);
+    pdf.callout("Condiciones de la orden", [
+      `Esta orden debe acompañarse del número ${numero} en la factura y en la guía de entrega.`,
+      "La mercadería se recibe contra esta orden; cantidades distintas a las aquí indicadas requieren autorización escrita.",
+      "Precios y condiciones sujetos a la cotización adjudicada. Cualquier cambio debe notificarse antes de despachar.",
+    ]);
+
+    pdf.signatureBlock([
+      { label: "Autoriza la orden", name: h.autoriza },
+      { label: "Aceptada por el proveedor", name: " " },
+    ]);
 
     return pdf.build();
   }

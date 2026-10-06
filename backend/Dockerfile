@@ -34,4 +34,4 @@ EXPOSE 3000
 # Credenciales por variables de entorno (.env / docker-compose):
 #   DB_USER  DB_PASSWORD  DB_CONNECT_STRING  JWT_SECRET  HTTP_PORT
 USER node
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/src/server.js"]

@@ -22,7 +22,7 @@ vi.mock("../nav.js", async (importOriginal) => {
     { id: "com-doc-rfq", label: "RFQ", kind: "documento", icon: "grid", perm: [PERM_RFQ] },
     { id: "com-doc-cotizaciones", label: "Cotizaciones", kind: "documento", icon: "grid", perm: ["OTRO_2"] },
     { id: "com-an-comparativo", label: "Comparativo", kind: "documento", icon: "grid", perm: ["OTRO_3"] },
-    { id: "com-doc-ordenes", label: "Ordenes", kind: "documento", icon: "grid", perm: ["OTRO_4"] },
+    { id: "com-doc-ordenes", label: "Órdenes", kind: "documento", icon: "grid", perm: ["OTRO_4"] },
     { id: "com-doc-recepciones", label: "Recepciones", kind: "documento", icon: "grid", perm: ["OTRO_5"] },
     { id: "com-doc-devoluciones", label: "Devoluciones", kind: "documento", icon: "grid", perm: ["OTRO_6"] },
   ];

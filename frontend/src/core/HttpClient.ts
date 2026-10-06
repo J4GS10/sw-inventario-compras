@@ -18,13 +18,33 @@ import {
   LockedError,
   NetworkError,
   NotFoundError,
+  RateLimitedError,
   ServerError,
+  TimeoutError,
   UnauthorizedError,
+  UnavailableError,
   ValidationError,
   type ErrorDetail,
 } from "./errors.js";
 
+import { eventBus } from "./EventBus.js";
+
 const TOKEN_STORAGE_KEY = "erp.auth.token";
+
+/** Una peticion que no responde en este tiempo se cancela (evita pantallas "cargando" eternas). */
+const REQUEST_TIMEOUT_MS = 30_000;
+/** Reintentos de LECTURAS (GET) ante corte de red o 502/503/504, con espera creciente. */
+const GET_RETRY_DELAYS_MS: readonly number[] = [400, 1200];
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+const esperar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Clave de idempotencia (UUID v4 si el navegador lo ofrece; si no, aleatoria equivalente). */
+function nuevaClave(): string {
+  const c = globalThis.crypto;
+  if (c !== undefined && typeof c.randomUUID === "function") return c.randomUUID();
+  return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
 
 export interface PageMeta {
   readonly page: number;
@@ -101,6 +121,30 @@ export class HttpClient {
     return this.unwrap<T>(await this.request("POST", path, payload));
   }
 
+  /**
+   * POST con una Idempotency-Key PROPIA y persistente (cola de envios sin conexion): reenviar el mismo
+   * pendiente tras un corte nunca duplica el documento, aunque el primer intento si hubiera llegado.
+   */
+  public async postConClave<T>(path: string, payload: unknown, idempotencyKey: string): Promise<T> {
+    return this.unwrap<T>(await this.requestOnce("POST", path, payload, undefined, idempotencyKey));
+  }
+
+  /**
+   * Pregunta al SERVIDOR si este documento pasaria TODAS sus reglas (plazos, proveedor invitado,
+   * topes, vigencias...) sin registrarlo: cabecera `X-Solo-Validar`. Resuelve si es valido; lanza el
+   * mismo error de validacion/negocio que daria el registro real. No usa Idempotency-Key ni consume folios.
+   */
+  public async validarEnServidor(path: string, payload: unknown): Promise<void> {
+    const res = await this.fetchConTimeout(this.baseUrl + path, {
+      method: "POST",
+      headers: { ...this.authHeaders(), "Content-Type": "application/json", "X-Solo-Validar": "1" },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    const parsed: unknown = text ? this.safeJson(text) : {};
+    if (!res.ok) throw this.mapError(res.status, parsed);
+  }
+
   public async put<T>(path: string, payload: unknown, version?: number): Promise<T> {
     return this.unwrap<T>(await this.request("PUT", path, payload, version));
   }
@@ -156,13 +200,77 @@ export class HttpClient {
 
   // -- Template Method ---------------------------------------------------
 
+  /** Escrituras en vuelo o con desenlace incierto, por huella (metodo+ruta+cuerpo). */
+  private enVuelo = 0;
+
+  private readonly escrituras = new Map<string, { key: string; vuelo?: Promise<unknown>; desde: number }>();
+
+  /**
+   * Idempotencia de las ESCRITURAS (POST/PUT/DELETE con cuerpo):
+   *  - Single-flight: la misma peticion (mismo metodo, ruta y cuerpo) ya en vuelo comparte su
+   *    promesa — un doble clic NO envia dos.
+   *  - Idempotency-Key: se envia una clave unica; si el resultado es incierto (corte de red,
+   *    timeout, 5xx) y el usuario reintenta, se REUSA la clave y el servidor devuelve la
+   *    respuesta original en vez de duplicar el documento. Con un desenlace definitivo (exito o
+   *    error 4xx) la clave se descarta: crear dos documentos iguales a proposito sigue siendo posible.
+   */
   private async request(
     method: string,
     path: string,
     payload?: unknown,
     version?: number,
   ): Promise<unknown> {
+    if (method === "GET" || payload === undefined) return this.requestOnce(method, path, payload, version);
+    const huella = `${method}|${path}|${JSON.stringify(payload)}|${version ?? ""}`;
+    const ahora = Date.now();
+    for (const [h, e] of this.escrituras) if (e.vuelo === undefined && ahora - e.desde > 120_000) this.escrituras.delete(h);
+
+    const previa = this.escrituras.get(huella);
+    if (previa?.vuelo !== undefined) return previa.vuelo;
+
+    const entrada = previa ?? { key: nuevaClave(), desde: ahora };
+    this.escrituras.set(huella, entrada);
+    this.enVuelo++;
+    eventBus.emit("http.guardando", this.enVuelo);
+    const vuelo = (async () => {
+      try {
+        const r = await this.requestOnce(method, path, payload, version, entrada.key);
+        this.escrituras.delete(huella); // desenlace definitivo: clave descartada
+        return r;
+      } catch (e) {
+        // 4xx (validacion, conflicto, permisos): el servidor SI respondio -> definitivo.
+        // Red / timeout / 5xx: incierto -> se conserva la clave para el reintento.
+        const definitivo = e instanceof AppError && e.httpStatus >= 400 && e.httpStatus < 500;
+        if (definitivo) this.escrituras.delete(huella);
+        else {
+          entrada.vuelo = undefined;
+          entrada.desde = Date.now();
+        }
+        throw e;
+      }
+    })();
+    entrada.vuelo = vuelo;
+    vuelo.then(
+      () => undefined,
+      () => {
+        entrada.vuelo = undefined;
+      },
+    ).finally(() => {
+      this.enVuelo = Math.max(0, this.enVuelo - 1);
+      eventBus.emit("http.guardando", this.enVuelo);
+    });
+    return vuelo;
+  }
+
+  private async requestOnce(
+    method: string,
+    path: string,
+    payload?: unknown,
+    version?: number,
+    idempotencyKey?: string,
+  ): Promise<unknown> {
     const headers: Record<string, string> = { ...this.authHeaders() };
+    if (idempotencyKey !== undefined) headers["Idempotency-Key"] = idempotencyKey;
     const init: RequestInit = { method, headers };
     if (payload !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -170,11 +278,24 @@ export class HttpClient {
     }
     if (version !== undefined) headers["If-Match"] = String(version);
 
-    let res: Response;
-    try {
-      res = await fetch(this.baseUrl + path, init);
-    } catch (e) {
-      throw new NetworkError(e instanceof Error ? e.message : undefined);
+    // Solo las lecturas se reintentan solas: repetir un POST podria duplicar un documento.
+    const delays = method === "GET" ? GET_RETRY_DELAYS_MS : [];
+    let res: Response | undefined;
+    for (let intento = 0; ; intento++) {
+      try {
+        res = await this.fetchConTimeout(this.baseUrl + path, init);
+      } catch (e) {
+        if (intento < delays.length && !(e instanceof TimeoutError)) {
+          await esperar(delays[intento]!);
+          continue;
+        }
+        throw e;
+      }
+      if (RETRYABLE_STATUS.has(res.status) && intento < delays.length) {
+        await esperar(delays[intento]!);
+        continue;
+      }
+      break;
     }
 
     if (res.status === 204) return {};
@@ -222,11 +343,33 @@ export class HttpClient {
         return new ConflictError(wire.message);
       case 423:
         return new LockedError(wire.message);
+      case 429:
+        return new RateLimitedError(wire.message);
+      case 502:
+      case 503:
+      case 504:
+        return new UnavailableError(
+          wire.code === "UNAVAILABLE" ? wire.message : undefined,
+        );
       case 422:
       case 400:
         return new ValidationError(wire.message, details);
       default:
         return new ServerError(wire.message);
+    }
+  }
+
+  /** fetch con tope de tiempo; traduce corte de red y timeout a errores del dominio. */
+  private async fetchConTimeout(url: string, init: RequestInit): Promise<Response> {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...init, signal: ctl.signal });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") throw new TimeoutError();
+      throw new NetworkError(e instanceof Error ? e.message : undefined);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

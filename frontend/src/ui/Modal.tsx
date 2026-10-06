@@ -29,29 +29,30 @@ export function Modal(props: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 md:p-8"
+      className="modal-wrap fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 md:p-8"
       style={{ background: "var(--overlay)", backdropFilter: "blur(2px)" }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) props.onClose();
       }}
     >
       <div
-        className="card w-full"
+        className="modal-card card w-full"
         style={{ maxWidth: props.width ?? 640, boxShadow: "var(--shadow-lg)" }}
         role="dialog"
         aria-modal="true"
+        aria-label={typeof props.title === "string" ? props.title : undefined}
       >
         <div
-          className="flex items-center justify-between px-5 py-3.5"
+          className="modal-head flex items-center justify-between px-5 py-3.5"
           style={{ borderBottom: "1px solid var(--color-line)" }}
         >
           <h2 style={{ color: "var(--color-heading)" }}>{props.title}</h2>
           <Button variant="ghost" size="sm" icon="x" onClick={props.onClose} aria-label="Cerrar" />
         </div>
-        <div className="px-5 py-4">{props.children}</div>
+        <div className="modal-body px-5 py-4">{props.children}</div>
         {props.footer !== undefined && (
           <div
-            className="flex items-center justify-end gap-2 px-5 py-3.5"
+            className="modal-foot flex items-center justify-end gap-2 px-5 py-3.5"
             style={{ borderTop: "1px solid var(--color-line)" }}
           >
             {props.footer}

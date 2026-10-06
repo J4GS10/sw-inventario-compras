@@ -77,7 +77,7 @@ afterAll(async () => {
 });
 
 describe("Dashboard: resumen agregado", () => {
-  it("monta un ciclo completo hasta la recepcion", async () => {
+  it("monta un ciclo completo hasta la recepción", async () => {
     const sol = await app.inject({
       method: "POST",
       url: "/api/com/solicitudes",
@@ -94,7 +94,7 @@ describe("Dashboard: resumen agregado", () => {
         detalles: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo dashboard",
+            descripcion: "Artículo dashboard",
             cantidadSolicitada: 20,
             idUnidadMedida: ids.unidadMedida,
             fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -184,7 +184,7 @@ describe("Dashboard: resumen agregado", () => {
         lineas: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo dashboard",
+            descripcion: "Artículo dashboard",
             cantidad: 20,
             idUnidadMedida: ids.unidadMedida,
             idCotizacionDetalle: ganadora,
@@ -223,7 +223,7 @@ describe("Dashboard: resumen agregado", () => {
     expect(rec.statusCode).toBe(201);
   });
 
-  it("1. compras por mes: 12 buckets y el mes actual con monto y ordenes", async () => {
+  it("1. compras por mes: 12 buckets y el mes actual con monto y órdenes", async () => {
     const res = await app.inject({ method: "GET", url: "/api/com/dashboard/resumen", headers: H });
     expect(res.statusCode).toBe(200);
     const d = (res.json() as { data: Record<string, unknown> }).data as {
@@ -277,7 +277,7 @@ describe("Dashboard: resumen agregado", () => {
     expect(d.ahorroAdjudicacion.montoEvitado).toBeGreaterThan(0);
   });
 
-  it("4. el parametro ?meses acota la ventana", async () => {
+  it("4. el parámetro ?meses acota la ventana", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/com/dashboard/resumen?meses=6",

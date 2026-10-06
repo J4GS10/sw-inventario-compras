@@ -5,7 +5,7 @@
  * toman su ancho segun el tipo de dato (Field/FormGrid).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Field, FormGrid } from "../ui/Field.js";
 import { DataTable, type Column } from "../ui/DataTable.js";
 import { Modal, ConfirmDialog, Tabs } from "../ui/Modal.js";
@@ -16,6 +16,7 @@ import { useResource } from "../hooks/useResource.js";
 import { catalogService } from "../core/CompraServices.js";
 import { http } from "../core/HttpClient.js";
 import { messageOf } from "../core/errors.js";
+import { guardarBorrador, quitarBorrador, vaciarPendientes } from "../core/borradores.js";
 import { useAuth } from "../core/auth/AuthContext.js";
 import { Permisos } from "../core/auth/permisos.js";
 import {
@@ -42,8 +43,7 @@ export interface CrudPageConfig {
   readonly writePerm?: string;
   /** Boton "?" junto al titulo — el usuario elige verla, nunca se abre sola. */
   readonly help?: HelpContent;
-  /** Nombre de columna sobre el que buscar (server-side, via `campo__like`). */
-  readonly searchField?: string;
+  /** Texto de ayuda del buscador. El buscador siempre existe: busca en todos los campos y relaciones. */
   readonly searchPlaceholder?: string;
   /** Tarjetas KPI sobre la lista (conteos/promedios a partir de la pagina cargada + el total + los tags derivados, si los hay). */
   readonly stats?: (
@@ -73,7 +73,7 @@ type Values = Record<string, import("../ui/Field.js").FieldValue>;
 export default function CrudPage(props: { config: CrudPageConfig }): React.ReactElement {
   const { config } = props;
   const toast = useToast();
-  const { hasPerm } = useAuth();
+  const { hasPerm, sesion } = useAuth();
   const canEdit = hasPerm(config.writePerm ?? Permisos.CATALOGO_EDITAR);
 
   const service = useMemo(
@@ -84,33 +84,58 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
+  /** Fila recien creada/editada (se resalta unos segundos). */
+  const [resaltarId, setResaltarId] = useState<number | null>(null);
+  useEffect(() => {
+    if (resaltarId === null) return;
+    const t = window.setTimeout(() => setResaltarId(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [resaltarId]);
   const [values, setValues] = useState<Values>(() => blankValues(config.fields));
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState(config.formTabs?.[0]?.id ?? "");
   const [toDelete, setToDelete] = useState<Row[] | null>(null);
-  const [search, setSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  // La vista (busqueda y filtros) se recuerda por pantalla durante la sesion.
+  const vistaClave = `erp.vista.${config.basePath}`;
+  const vistaInicial = useMemo((): { search?: string; filtros?: Record<string, string> } => {
+    try {
+      const raw = window.sessionStorage.getItem(vistaClave);
+      return raw === null ? {} : (JSON.parse(raw) as { search?: string; filtros?: Record<string, string> });
+    } catch {
+      return {};
+    }
+  }, [vistaClave]);
+  const [search, setSearch] = useState(vistaInicial.search ?? "");
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(vistaInicial.filtros ?? {});
+  /** Filas con baja pendiente (periodo de "Deshacer"): se ocultan al instante. */
+  const [ocultas, setOcultas] = useState<ReadonlySet<number>>(new Set());
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(vistaClave, JSON.stringify({ search, filtros: filterValues }));
+    } catch {
+      /* sin almacenamiento: no se recuerda */
+    }
+  }, [vistaClave, search, filterValues]);
   const [tagsMap, setTagsMap] = useState<Record<number, readonly string[]>>({});
   const [remoteFilterOptions, setRemoteFilterOptions] = useState<
     Record<string, readonly { value: string; label: string }[]>
   >({});
 
   useEffect(() => {
+    // Debounce: re-consulta 300 ms despues de dejar de teclear.
     const t = setTimeout(() => {
       const combined: Record<string, string> = {};
-      if (config.searchField !== undefined && search.trim() !== "") {
-        combined[`${config.searchField}__like`] = search.trim();
-      }
       for (const [k, v] of Object.entries(filterValues)) {
         if (v !== "") combined[`${k}__eq`] = v;
       }
       res.setFilters(combined);
+      res.setSearch(search);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, config.searchField, filterValues]);
+  }, [search, filterValues]);
 
   useEffect(() => {
     if (config.derivedTags === undefined) return;
@@ -208,9 +233,70 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
     [config.fields],
   );
 
+  // Borrador del alta: lo escrito sobrevive a un cierre brusco o reinicio y se recupera al pulsar "Nuevo".
+  const claveBorrador = sesion === null ? null : `erp.borrador.${sesion.idUsuario}.crud.${config.basePath}`;
+  const tocado = useRef(false);
+  const valoresRef = useRef(values);
+  valoresRef.current = values;
+  function guardarBorradorActual(): void {
+    if (claveBorrador === null || !tocado.current || editing !== null) return;
+    guardarBorrador(claveBorrador, { values: valoresRef.current, en: Date.now() });
+  }
+  function descartarBorrador(): void {
+    tocado.current = false;
+    if (claveBorrador !== null) quitarBorrador(claveBorrador);
+  }
+  useEffect(() => {
+    if (!open || editing !== null) return;
+    const t = window.setTimeout(guardarBorradorActual, 600);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing, values]);
+  useEffect(() => {
+    if (!open || editing !== null) return;
+    const alOcultar = (): void => {
+      if (document.visibilityState === "hidden") {
+        guardarBorradorActual();
+        vaciarPendientes();
+      }
+    };
+    const alCerrar = (): void => {
+      guardarBorradorActual();
+      vaciarPendientes();
+    };
+    window.addEventListener("pagehide", alCerrar);
+    document.addEventListener("visibilitychange", alOcultar);
+    return () => {
+      window.removeEventListener("pagehide", alCerrar);
+      document.removeEventListener("visibilitychange", alOcultar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editing]);
+
   function openCreate(): void {
     setEditing(null);
-    setValues(blankValues(config.fields));
+    tocado.current = false;
+    let inicial = blankValues(config.fields);
+    if (claveBorrador !== null) {
+      try {
+        const raw = window.localStorage.getItem(claveBorrador);
+        const d = raw === null ? null : (JSON.parse(raw) as { values: Values; en: number });
+        if (d !== null && Date.now() - d.en < 7 * 864e5) {
+          inicial = { ...inicial, ...d.values };
+          tocado.current = true;
+          toast.info("Se recuperó lo que habías escrito", 6000, {
+            label: "Empezar de nuevo",
+            onClick: () => {
+              descartarBorrador();
+              setValues(blankValues(config.fields));
+            },
+          });
+        }
+      } catch {
+        /* borrador ilegible: se ignora */
+      }
+    }
+    setValues(inicial);
     setShowErrors(false);
     setTab(config.formTabs?.[0]?.id ?? "");
     setOpen(true);
@@ -230,6 +316,20 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
     setOpen(true);
   }
 
+  // Atajo: Ctrl/Cmd + Enter guarda el formulario abierto.
+  const guardarRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        guardarRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   async function save(): Promise<void> {
     const err = firstError(config.fields, values);
     if (err !== null) {
@@ -241,10 +341,14 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
     try {
       const payload = toPayload(config.fields, values);
       if (editing === null) {
-        await res.create(payload);
+        const creado = (await res.create(payload)) as Row | undefined;
+        const idNuevo = Number(creado?.[config.idField]);
+        if (Number.isFinite(idNuevo)) setResaltarId(idNuevo);
+        descartarBorrador();
         toast.success("Registro creado");
       } else {
         await res.update(editing, payload);
+        setResaltarId(Number(editing[config.idField]));
         toast.success("Cambios guardados");
       }
       setOpen(false);
@@ -257,14 +361,57 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
 
   async function confirmDelete(): Promise<void> {
     if (toDelete === null) return;
-    try {
-      for (const row of toDelete) await res.remove(row);
-      toast.success(toDelete.length > 1 ? "Registros eliminados" : "Registro eliminado");
-      setToDelete(null);
-    } catch (e: unknown) {
-      toast.error(messageOf(e));
-    }
+    const filas = toDelete;
+    setToDelete(null);
+    const ids = filas.map((r) => Number(r[config.idField]));
+    setOcultas((prev) => new Set([...prev, ...ids]));
+    const mostrar = (): void =>
+      setOcultas((prev) => {
+        const n = new Set(prev);
+        ids.forEach((i) => n.delete(i));
+        return n;
+      });
+    // Borrado con DESHACER: se ejecuta a los 6 s salvo que el usuario lo cancele.
+    let deshecho = false;
+    const timer = window.setTimeout(() => {
+      if (deshecho) return;
+      void (async () => {
+        try {
+          for (const row of filas) await res.remove(row);
+        } catch (e: unknown) {
+          toast.error(messageOf(e));
+          res.reload();
+        } finally {
+          mostrar();
+        }
+      })();
+    }, 6000);
+    toast.info(filas.length > 1 ? `${filas.length} registros eliminados` : "Registro eliminado", 6000, {
+      label: "Deshacer",
+      onClick: () => {
+        deshecho = true;
+        window.clearTimeout(timer);
+        mostrar();
+      },
+    });
   }
+
+  /** Todo lo que cumple el filtro actual, no solo la pagina visible. */
+  async function exportarTodo(): Promise<readonly Row[]> {
+    const filtros: Record<string, string> = {};
+    for (const [k, v] of Object.entries(filterValues)) if (v !== "") filtros[`${k}__eq`] = v;
+    const out: Row[] = [];
+    for (let p = 1; p <= 10; p++) {
+      const r = await service.list({ page: p, pageSize: 200, filters: filtros, ...(search.trim() !== "" ? { search: search.trim() } : {}) });
+      out.push(...(r.data as Row[]));
+      if (p >= r.meta.totalPages) break;
+    }
+    return out;
+  }
+
+  guardarRef.current = () => {
+    if (!saving) void save();
+  };
 
   const visibleFieldNames =
     config.formTabs === undefined
@@ -309,8 +456,11 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
       )}
 
       <DataTable<Row>
+        columnsKey={config.basePath}
+        highlightKey={resaltarId}
+        {...(canEdit ? { emptyAction: { label: "Crear el primero", onClick: openCreate } } : {})}
         columns={columns}
-        rows={res.rows}
+        rows={res.rows.filter((r) => !ocultas.has(Number(r[config.idField])))}
         rowKey={(r) => Number(r[config.idField])}
         loading={res.loading}
         selectable={canEdit}
@@ -319,11 +469,13 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
         total={res.meta.total}
         onPage={res.setPage}
         onReload={res.reload}
-        search={
-          config.searchField !== undefined
-            ? { value: search, onChange: setSearch, placeholder: config.searchPlaceholder ?? `Buscar ${config.title.toLowerCase()}...` }
-            : undefined
-        }
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: config.searchPlaceholder ?? `Buscar en ${config.title.toLowerCase()}…`,
+        }}
+        sort={res.sortState}
+        onSort={res.setSortState}
         filters={
           config.filterFields !== undefined && config.filterFields.length > 0
             ? {
@@ -339,6 +491,8 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
             : undefined
         }
         exportFilename={config.basePath.replace(/^\/api\/com\//, "").replace(/\//g, "-")}
+        exportAll={exportarTodo}
+        onRowClick={canEdit ? openEdit : undefined}
         bulkActions={
           canEdit
             ? [{ label: "Eliminar", icon: "trash", tone: "danger", onClick: (rs) => setToDelete([...rs]) }]
@@ -383,8 +537,12 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
                 key={f.name}
                 def={withResolvedOptions(f, fkOptions)}
                 value={values[f.name] ?? ""}
-                onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
+                onChange={(v) => {
+                  tocado.current = true;
+                  setValues((prev) => ({ ...prev, [f.name]: v }));
+                }}
                 showErrors={showErrors}
+                values={values}
               />
             );
           })}
@@ -393,11 +551,11 @@ export default function CrudPage(props: { config: CrudPageConfig }): React.React
 
       <ConfirmDialog
         open={toDelete !== null}
-        title="Confirmar eliminacion"
+        title="Confirmar eliminación"
         message={
           toDelete !== null && toDelete.length > 1
-            ? `Se eliminaran ${toDelete.length} registros (marcado como eliminado).`
-            : "Se eliminara el registro seleccionado (marcado como eliminado)."
+            ? `Se eliminarán ${toDelete.length} registros (marcado como eliminado).`
+            : "Se eliminará el registro seleccionado (marcado como eliminado)."
         }
         onConfirm={() => void confirmDelete()}
         onCancel={() => setToDelete(null)}

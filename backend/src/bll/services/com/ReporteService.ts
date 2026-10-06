@@ -42,8 +42,12 @@ export interface ReporteDesempenoProveedores {
   readonly generadoEn: string;
 }
 
-function normFecha(v: string | undefined): string | undefined {
-  return v === undefined || v === "" ? undefined : v;
+import { validarRangoFechas } from "../../compras/reglasDocumentos.js";
+
+/** Valida el rango (dias reales, desde <= hasta) y lo deja normalizado. */
+function normRango(desde: string | undefined, hasta: string | undefined): { d?: string; h?: string } {
+  const r = validarRangoFechas(desde, hasta);
+  return { ...(r.desde !== undefined ? { d: r.desde } : {}), ...(r.hasta !== undefined ? { h: r.hasta } : {}) };
 }
 
 export type NivelRiesgo = "bajo" | "medio" | "alto";
@@ -104,8 +108,7 @@ export class ReporteService {
     desde?: string,
     hasta?: string,
   ): Promise<ReporteGastoProveedor> {
-    const d = normFecha(desde);
-    const h = normFecha(hasta);
+    const { d, h } = normRango(desde, hasta);
     const filas = await this.read.gastoPorProveedor(d, h);
     const montoTotal = Number(filas.reduce((a, r) => a + r.monto, 0).toFixed(2));
     const ordenesTotal = filas.reduce((a, r) => a + r.ordenes, 0);
@@ -137,8 +140,7 @@ export class ReporteService {
     desde?: string,
     hasta?: string,
   ): Promise<ReporteDesempenoProveedores> {
-    const d = normFecha(desde);
-    const h = normFecha(hasta);
+    const { d, h } = normRango(desde, hasta);
     const filas = await this.read.desempenoProveedores(d, h);
     const conDato = filas.filter((r) => r.diasPromedioEntrega !== null);
     const diasPromedioGeneral =

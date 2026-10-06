@@ -28,7 +28,7 @@ const WRITE = [Permisos.COTIZACION_ADJUDICAR];
 function idParam(request: FastifyRequest): number {
   const id = Number.parseInt((request.params as { id?: string }).id ?? "", 10);
   if (!Number.isInteger(id) || id <= 0) {
-    throw new ValidationError("Parametro 'id' invalido");
+    throw new ValidationError("Parámetro 'id' inválido");
   }
   return id;
 }
@@ -51,6 +51,14 @@ export function registerComAnaliticaRoutes(app: FastifyInstance): void {
     { preHandler: authGuard(READ) },
     async (req, reply) => {
       reply.send({ data: await comparativo.comparativoSolicitud(idParam(req)) });
+    },
+  );
+
+  app.get(
+    "/api/com/comparativo/solicitud/:id/sugerencia",
+    { preHandler: authGuard(READ) },
+    async (req, reply) => {
+      reply.send({ data: await comparativo.sugerenciaAdjudicacion(idParam(req)) });
     },
   );
 

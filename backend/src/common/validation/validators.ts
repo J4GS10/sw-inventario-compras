@@ -83,7 +83,7 @@ export async function validateDto<T extends object>(
         details.push({ field: err.property, message });
       }
     }
-    throw new ValidationError("El cuerpo de la peticion no es valido", details);
+    throw new ValidationError("El cuerpo de la petición no es válido", details);
   }
   return instance;
 }

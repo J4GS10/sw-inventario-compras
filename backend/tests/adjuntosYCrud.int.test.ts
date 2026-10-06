@@ -94,7 +94,7 @@ beforeAll(async () => {
       detalles: [
         {
           idArticulo: ids.articulo,
-          descripcion: "Articulo adjuntos",
+          descripcion: "Artículo adjuntos",
           cantidadSolicitada: 10,
           idUnidadMedida: ids.unidadMedida,
           fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -226,7 +226,7 @@ describe("Adjuntos de cotizaciones", () => {
     expect((list.json() as { data: unknown[] }).data.length).toBe(0);
   });
 
-  it("5. adjuntar a una cotizacion inexistente da 404", async () => {
+  it("5. adjuntar a una cotización inexistente da 404", async () => {
     const mp = multipart("x.pdf", "application/pdf", Buffer.from("%PDF-1.4"));
     const res = await app.inject({
       method: "POST",
@@ -239,7 +239,7 @@ describe("Adjuntos de cotizaciones", () => {
 });
 
 describe("CRUD de cotizaciones con cerrojo por estado", () => {
-  it("1. PUT edita la cabecera mientras el RFQ esta ABIERTO", async () => {
+  it("1. PUT edita la cabecera mientras el RFQ está ABIERTO", async () => {
     const res = await app.inject({
       method: "PUT",
       url: `/api/com/cotizaciones/${state.idCotB}`,
@@ -251,7 +251,7 @@ describe("CRUD de cotizaciones con cerrojo por estado", () => {
     expect(Number(hdr.tasaCambio)).toBeCloseTo(7.85);
   });
 
-  it("1b. PUT reemplaza las lineas de la cotizacion (RFQ abierto, sin adjudicar)", async () => {
+  it("1b. PUT reemplaza las líneas de la cotización (RFQ abierto, sin adjudicar)", async () => {
     const res = await app.inject({
       method: "PUT",
       url: `/api/com/cotizaciones/${state.idCotB}`,

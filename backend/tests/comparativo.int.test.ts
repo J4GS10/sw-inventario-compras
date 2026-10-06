@@ -137,7 +137,7 @@ describe("Comparativo de 3 cotizaciones", () => {
         detalles: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo comparado",
+            descripcion: "Artículo comparado",
             cantidadSolicitada: 20,
             idUnidadMedida: ids.unidadMedida,
             fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -222,7 +222,7 @@ describe("Comparativo de 3 cotizaciones", () => {
     expect((comp["proveedoresParticipantes"] as unknown[]).length).toBe(3);
   });
 
-  it("2. la linea marca exactamente un mejor precio y aun no hay adjudicada", async () => {
+  it("2. la línea marca exactamente un mejor precio y aún no hay adjudicada", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/api/com/comparativo/solicitud/${state.idSolicitud}`,
@@ -277,7 +277,7 @@ describe("Comparativo de 3 cotizaciones", () => {
     expect(criterios.every((c) => c.proveedor.length > 0)).toBe(true);
   });
 
-  it("4. adjudica la mejor cotizacion y el comparativo lo refleja", async () => {
+  it("4. adjudica la mejor cotización y el comparativo lo refleja", async () => {
     const ganadora = state.cotDetallePorProveedor.get(ids.proveedores[1]!)!;
     state.idCotizacionDetalleGanadora = ganadora;
     const adj = await app.inject({
@@ -317,7 +317,7 @@ describe("Historial de precios por proveedor", () => {
         lineas: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo comparado",
+            descripcion: "Artículo comparado",
             cantidad: 20,
             idUnidadMedida: ids.unidadMedida,
             idCotizacionDetalle: state.idCotizacionDetalleGanadora,
@@ -374,7 +374,7 @@ describe("Historial de precios por proveedor", () => {
     expect(body.data.every((r) => r.proveedor.length > 0)).toBe(true);
   });
 
-  it("2. el precio historico coincide con el adjudicado (25.5)", async () => {
+  it("2. el precio histórico coincide con el adjudicado (25.5)", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/api/com/historial-precios?idProveedor=${proveedorGanador()}&idArticulo=${ids.articulo}&pageSize=50`,
@@ -385,8 +385,9 @@ describe("Historial de precios por proveedor", () => {
   });
 
   it("3. filtra por rango de fechas (hoy incluido, ayer excluye todo)", async () => {
-    const hoy = new Date().toISOString().slice(0, 10);
-    const ayer = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    const gt = (n: number): string => new Date(Date.now() + n * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Guatemala" });
+    const hoy = gt(0);
+    const ayer = gt(-1);
 
     const conHoy = await app.inject({
       method: "GET",

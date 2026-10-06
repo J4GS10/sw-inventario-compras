@@ -16,6 +16,7 @@
  * la recepcion (estado ALIMENTADO_CXP).
  */
 
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { Connection } from "oracledb";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
@@ -28,6 +29,8 @@ import {
   type PageQuery,
   type Paginated,
 } from "../../../common/types/Query.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { MAX_LINEAS } from "../../compras/reglasDocumentos.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type {
@@ -109,7 +112,7 @@ export class RecepcionService extends TransactionalService {
       if (actual === null) throw new NotFoundError("COM_RECEPCION", id);
       if (actual.estado !== "RECIBIDO") {
         throw new BusinessRuleError(
-          "No se puede eliminar: la recepcion ya alimento el kardex y CxP " +
+          "No se puede eliminar: la recepción ya alimentó el kardex y CxP " +
             "(estado ALIMENTADO_CXP). Anula por Cuentas por Pagar.",
         );
       }
@@ -137,8 +140,8 @@ export class RecepcionService extends TransactionalService {
       if (actual === null) throw new NotFoundError("COM_RECEPCION", id);
       if (actual.estado !== "ALIMENTADO_CXP") {
         throw new BusinessRuleError(
-          "Solo se puede reversar una recepcion que ya alimento CxP " +
-            "(estado ALIMENTADO_CXP). Si aun esta en RECIBIDO, usa Eliminar.",
+          "Solo se puede reversar una recepción que ya alimentó CxP " +
+            "(estado ALIMENTADO_CXP). Si aún está en RECIBIDO, usa Eliminar.",
         );
       }
 
@@ -153,7 +156,7 @@ export class RecepcionService extends TransactionalService {
       if (devoluciones.data.length > 0) {
         throw new BusinessRuleError(
           "No se puede reversar: hay devoluciones a proveedor registradas contra " +
-            "esta recepcion. Eliminalas primero.",
+            "esta recepción. Elimínalas primero.",
         );
       }
 
@@ -175,7 +178,7 @@ export class RecepcionService extends TransactionalService {
           if (factura.estado !== "PENDIENTE") {
             throw new BusinessRuleError(
               `No se puede reversar: la factura de CxP ${factura.idFacturaProveedor} ` +
-                `esta en estado ${String(factura.estado)}.`,
+                `está en estado ${String(factura.estado)}.`,
             );
           }
           if (
@@ -255,6 +258,8 @@ export class RecepcionService extends TransactionalService {
     const input = this.parse(body);
 
     return this.runInTransaction(async ({ conn, enqueueEvent }) => {
+      // Serializa las recepciones de ESTA orden (el pendiente se calcula y se consume en el mismo bloqueo).
+      await this.ocRepo.lockById(input.idOrdenCompra, conn);
       const oc = (await this.ocRepo.findById(
         input.idOrdenCompra,
         conn,
@@ -264,7 +269,7 @@ export class RecepcionService extends TransactionalService {
       }
       if (["CANCELADA", "RECHAZADA", "RECIBIDA_COMPLETA"].includes(oc.estado)) {
         throw new BusinessRuleError(
-          `La orden de compra ${oc.idOrdenCompra} esta en estado ${oc.estado} y no admite recepciones`,
+          `La orden de compra ${oc.idOrdenCompra} está en estado ${oc.estado} y no admite recepciones`,
         );
       }
 
@@ -298,7 +303,7 @@ export class RecepcionService extends TransactionalService {
         const pendiente = ocLinea.cantidad - procesadoPrevio;
         if (nuevo > pendiente + 1e-6) {
           throw new BusinessRuleError(
-            `La linea de OC ${linea.idOcDetalle} admite maximo ${pendiente.toFixed(2)} ` +
+            `La línea de OC ${linea.idOcDetalle} admite máximo ${pendiente.toFixed(2)} ` +
               `unidades pendientes (ordenado ${ocLinea.cantidad}, ya procesado ` +
               `${procesadoPrevio.toFixed(2)}); se intento registrar ${nuevo}.`,
           );
@@ -322,7 +327,7 @@ export class RecepcionService extends TransactionalService {
         const ocLinea = porId.get(linea.idOcDetalle);
         if (ocLinea === undefined) {
           throw new ValidationError(
-            `La linea de OC ${linea.idOcDetalle} no pertenece a la orden ${input.idOrdenCompra}`,
+            `La línea de OC ${linea.idOcDetalle} no pertenece a la orden ${input.idOrdenCompra}`,
           );
         }
         return validateAgainstDescriptor(
@@ -337,6 +342,7 @@ export class RecepcionService extends TransactionalService {
         );
       });
 
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       const created = (await this.repo.createWithDetails(
         cabecera,
         detalles,
@@ -455,41 +461,47 @@ export class RecepcionService extends TransactionalService {
       throw new ValidationError("El cuerpo debe ser un objeto");
     }
     const b = body as Record<string, unknown>;
-    const idOrdenCompra = Number(b["idOrdenCompra"]);
-    const idBodega = Number(b["idBodega"]);
-    const idEmpleadoRecibe = Number(b["idEmpleadoRecibe"]);
     const lineasRaw = Array.isArray(b["lineas"]) ? b["lineas"] : [];
-    if (
-      !Number.isInteger(idOrdenCompra) ||
-      !Number.isInteger(idBodega) ||
-      !Number.isInteger(idEmpleadoRecibe) ||
-      lineasRaw.length === 0
-    ) {
-      throw new ValidationError("Datos de recepcion invalidos", [
-        {
-          message:
-            "idOrdenCompra, idBodega, idEmpleadoRecibe y al menos una linea son obligatorios",
-        },
-      ]);
-    }
-    const lineas: LineaRecepcionInput[] = lineasRaw.map((raw, i) => {
-      const l = raw as Record<string, unknown>;
-      const idOcDetalle = Number(l["idOcDetalle"]);
-      const cantidadRecibida = Number(l["cantidadRecibida"]);
-      if (!Number.isInteger(idOcDetalle) || !(cantidadRecibida > 0)) {
-        throw new ValidationError(`Linea ${i + 1} invalida`, [
-          {
-            field: `lineas[${i}]`,
-            message: "idOcDetalle y cantidadRecibida (> 0) son obligatorios",
-          },
-        ]);
+
+    const v = new Validacion();
+    const idOrdenCompra = v.id("idOrdenCompra", "La orden de compra", b["idOrdenCompra"]);
+    const idBodega = v.id("idBodega", "La bodega", b["idBodega"]);
+    const idEmpleadoRecibe = v.id("idEmpleadoRecibe", "El empleado que recibe", b["idEmpleadoRecibe"]);
+    if (lineasRaw.length === 0) v.error("lineas", "La recepción debe incluir al menos una línea");
+    if (lineasRaw.length > MAX_LINEAS) v.error("lineas", `La recepción admite máximo ${MAX_LINEAS} líneas`);
+
+    const vistas = new Set<number>();
+    const lineas: LineaRecepcionInput[] = [];
+    lineasRaw.forEach((raw, i) => {
+      const l = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const n = i + 1;
+      const idOcDetalle = v.id(`lineas[${i}].idOcDetalle`, `Línea ${n}: la línea de la orden`, l["idOcDetalle"]);
+      const cantidadRecibida = v.positivo(`lineas[${i}].cantidadRecibida`, `Línea ${n}: la cantidad recibida`, l["cantidadRecibida"]);
+      let cantidadRechazada: number | null = 0;
+      if (l["cantidadRechazada"] !== undefined && l["cantidadRechazada"] !== null && l["cantidadRechazada"] !== "") {
+        cantidadRechazada = v.noNegativo(`lineas[${i}].cantidadRechazada`, `Línea ${n}: la cantidad rechazada`, l["cantidadRechazada"]);
       }
-      const out: LineaRecepcionInput = { idOcDetalle, cantidadRecibida };
-      if (l["cantidadRechazada"] !== undefined) {
-        return { ...out, cantidadRechazada: Number(l["cantidadRechazada"]) };
+      if (idOcDetalle !== null) {
+        // Una misma linea dos veces en la peticion eludia el tope de "pendiente" (se validaba cada una por separado).
+        if (vistas.has(idOcDetalle)) {
+          v.error(`lineas[${i}].idOcDetalle`, `Línea ${n}: la línea de orden ${idOcDetalle} está repetida; sume las cantidades en una sola línea`);
+        }
+        vistas.add(idOcDetalle);
       }
-      return out;
+      if (idOcDetalle !== null && cantidadRecibida !== null && cantidadRechazada !== null) {
+        lineas.push(
+          cantidadRechazada > 0
+            ? { idOcDetalle, cantidadRecibida, cantidadRechazada }
+            : { idOcDetalle, cantidadRecibida },
+        );
+      }
     });
-    return { idOrdenCompra, idBodega, idEmpleadoRecibe, lineas };
+    v.lanzarSiHay("Recepción inválida");
+    return {
+      idOrdenCompra: idOrdenCompra as number,
+      idBodega: idBodega as number,
+      idEmpleadoRecibe: idEmpleadoRecibe as number,
+      lineas,
+    };
   }
 }

@@ -48,7 +48,7 @@ export class RecepcionPdfService {
 
     pdf.sectionTitle("Empresa");
     pdf.keyValues([
-      ["Razon social", empresa.nombre],
+      ["Razón social", empresa.nombre],
       ["NIT", empresa.nit],
     ]);
 
@@ -58,7 +58,7 @@ export class RecepcionPdfService {
       { label: "Estado", value: h.estado, tone: "brand" },
     ]);
 
-    pdf.sectionTitle("Datos de la recepcion");
+    pdf.sectionTitle("Datos de la recepción");
     pdf.keyValues([
       ["Orden de compra", `OC-${h.idOrdenCompra}`],
       ["Proveedor", `${h.proveedor} (NIT ${h.proveedorNit})`],
@@ -67,10 +67,10 @@ export class RecepcionPdfService {
       ["Fecha", h.fechaRecepcion.slice(0, 10)],
     ]);
 
-    pdf.sectionTitle("Conteo fisico por renglon");
+    pdf.sectionTitle("Conteo físico por renglón");
     pdf.table(
       [
-        { header: "Descripcion", width: 230 },
+        { header: "Descripción", width: 230 },
         { header: "U.M.", width: 60 },
         { header: "Recibido", width: 90, align: "right" },
         { header: "Rechazado", width: 90, align: "right" },

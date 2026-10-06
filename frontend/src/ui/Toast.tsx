@@ -6,16 +6,23 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 import Icon from "./Icon.js";
 
 type ToastTone = "success" | "error" | "info";
+/** Boton dentro del aviso: "Deshacer", "Registrar cotización", etc. */
+export interface ToastAction {
+  readonly label: string;
+  readonly onClick: () => void;
+}
+
 interface ToastItem {
   id: number;
   tone: ToastTone;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastApi {
-  success(message: string): void;
-  error(message: string): void;
-  info(message: string): void;
+  success(message: string, ms?: number, action?: ToastAction): void;
+  error(message: string, ms?: number, action?: ToastAction): void;
+  info(message: string, ms?: number, action?: ToastAction): void;
 }
 
 const Ctx = createContext<ToastApi | null>(null);
@@ -35,19 +42,19 @@ const TONE = {
 export function ToastProvider(props: { children: React.ReactNode }): React.ReactElement {
   const [items, setItems] = useState<ToastItem[]>([]);
 
-  const push = useCallback((tone: ToastTone, message: string) => {
+  const push = useCallback((tone: ToastTone, message: string, ms = 4200, action?: ToastAction) => {
     const id = Date.now() + Math.random();
-    setItems((prev) => [...prev, { id, tone, message }]);
+    setItems((prev) => [...prev, { id, tone, message, ...(action !== undefined ? { action } : {}) }]);
     window.setTimeout(() => {
       setItems((prev) => prev.filter((t) => t.id !== id));
-    }, 4200);
+    }, ms);
   }, []);
 
   const api = useMemo<ToastApi>(
     () => ({
-      success: (m) => push("success", m),
-      error: (m) => push("error", m),
-      info: (m) => push("info", m),
+      success: (m, ms, a) => push("success", m, ms, a),
+      error: (m, ms, a) => push("error", m, ms, a),
+      info: (m, ms, a) => push("info", m, ms, a),
     }),
     [push],
   );
@@ -56,7 +63,7 @@ export function ToastProvider(props: { children: React.ReactNode }): React.React
     <Ctx.Provider value={api}>
       {props.children}
       <div
-        className="fixed z-50 flex flex-col gap-2"
+        data-toast="" className="fixed z-50 flex flex-col gap-2"
         style={{ right: 20, bottom: 20, maxWidth: "min(92vw, 380px)" }}
       >
         {items.map((t) => {
@@ -73,9 +80,22 @@ export function ToastProvider(props: { children: React.ReactNode }): React.React
               >
                 <Icon name={tone.icon} size={15} />
               </span>
-              <span className="text-[0.85rem]" style={{ color: "var(--color-ink)" }}>
+              <span className="min-w-0 flex-1 text-[0.85rem]" style={{ color: "var(--color-ink)" }} role="status">
                 {t.message}
               </span>
+              {t.action !== undefined && (
+                <button
+                  type="button"
+                  className="shrink-0 rounded-md px-2 py-1 text-[0.8rem] font-semibold"
+                  style={{ color: "var(--color-brand-ink)", background: "var(--color-brand-050)" }}
+                  onClick={() => {
+                    t.action!.onClick();
+                    setItems((prev) => prev.filter((x) => x.id !== t.id));
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              )}
             </div>
           );
         })}

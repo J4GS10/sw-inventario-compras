@@ -156,7 +156,7 @@ export function OrdenCompraPreview(props: { open: boolean; id: number; onClose: 
                 <b>Proveedor:</b> {h.proveedor}
               </div>
               <div>
-                <b>Direccion:</b> {h.proveedorDireccion ?? "-"}
+                <b>Dirección:</b> {h.proveedorDireccion ?? "-"}
               </div>
               <div>
                 <b>NIT:</b> {h.proveedorNit}
@@ -172,8 +172,8 @@ export function OrdenCompraPreview(props: { open: boolean; id: number; onClose: 
               <thead>
                 <tr>
                   <th>No.</th>
-                  <th>Codigo</th>
-                  <th>Descripcion</th>
+                  <th>Código</th>
+                  <th>Descripción</th>
                   <th className="num">Cantidad</th>
                   <th>Unidad</th>
                   <th className="num">Precio unitario</th>
@@ -202,7 +202,7 @@ export function OrdenCompraPreview(props: { open: boolean; id: number; onClose: 
               style={{ background: "var(--color-surface-2)", minWidth: 240 }}
             >
               <div className="mb-1 text-[0.72rem] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-soft)" }}>
-                Terminos y condiciones
+                Términos y condiciones
               </div>
               <div>Entrega estimada: {h.fechaEntregaEsperada.slice(0, 10)}</div>
               {h.numeroReferencia !== null && <div>Referencia: {h.numeroReferencia}</div>}

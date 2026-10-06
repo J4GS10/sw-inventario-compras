@@ -16,3 +16,10 @@ tools/
 # Salida generada por scripts/qa-roles-smoke.mjs y similares
 qa-report.json
 qa-crud-report.json
+.oficial/
+
+# Configuracion local de herramientas y material de referencia con datos de terceros
+.claude/
+.gemini/
+pdf/
+.devserver.log

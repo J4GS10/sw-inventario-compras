@@ -10,6 +10,8 @@ import type { FastifyInstance } from "fastify";
 import { scalar, startTestApp, stopTestApp } from "./helpers/testApp.js";
 
 let app: FastifyInstance;
+/** Dia (YYYY-MM-DD) dentro de `n` dias: las reglas de fecha rechazan fechas pasadas o a mas de 3 anos. */
+const DIA_FUTURO = (n: number): string => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 const PASS = "compras.demo";
 const H = { "x-dev-user": "0" } as const; // contexto de sistema (permisos *)
 
@@ -50,7 +52,7 @@ async function crearSolicitud(): Promise<{ id: number; version: number }> {
       detalles: [
         {
           idArticulo: fk.articulo,
-          descripcion: "Linea",
+          descripcion: "Línea",
           cantidadSolicitada: 3,
           idUnidadMedida: fk.unidadMedida,
           fechaRequerida: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10),
@@ -92,13 +94,13 @@ describe("PUT /api/com/solicitudes/:id", () => {
     expect(h.prioridad).toBe(5);
   });
 
-  it("exige el campo version (bloqueo optimista) → 422", async () => {
+  it("exige el campo versión (bloqueo optimista) → 422", async () => {
     const { id } = await crearSolicitud();
     const res = await app.inject({
       method: "PUT",
       url: `/api/com/solicitudes/${id}`,
       headers: H,
-      payload: { justificacion: "sin version" },
+      payload: { justificacion: "sin versión" },
     });
     expect(res.statusCode).toBe(422);
   });
@@ -166,7 +168,7 @@ describe("PUT /api/com/rfq/:id", () => {
       method: "POST",
       url: "/api/com/rfq",
       headers: H,
-      payload: { idSolicitud: id, fechaLimite: "2099-01-01", proveedores: ids },
+      payload: { idSolicitud: id, fechaLimite: DIA_FUTURO(14), proveedores: ids },
     });
     expect(rfq.statusCode).toBe(201);
     const idRfq = (rfq.json() as { data: { header: { idRfq: number } } }).data.header.idRfq;
@@ -175,10 +177,10 @@ describe("PUT /api/com/rfq/:id", () => {
       method: "PUT",
       url: `/api/com/rfq/${idRfq}`,
       headers: H,
-      payload: { fechaLimite: "2099-06-30" },
+      payload: { fechaLimite: DIA_FUTURO(10) },
     });
     expect(res.statusCode).toBe(200);
     const rr = res.json() as { data: { fechaLimite: string } };
-    expect(String(rr.data.fechaLimite).slice(0, 10)).toBe("2099-06-30");
+    expect(String(rr.data.fechaLimite).slice(0, 10)).toBe(DIA_FUTURO(10));
   });
 });

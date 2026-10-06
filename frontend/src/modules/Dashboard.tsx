@@ -18,6 +18,7 @@ import type { HelpContent } from "../ui/HelpTip.js";
 import type { IconName } from "../ui/Icon.js";
 import Icon from "../ui/Icon.js";
 import { FlowStepper } from "../ui/FlowStepper.js";
+import DashboardHero from "./DashboardHero.js";
 import { TimeBars, Gauge } from "../ui/Charts.js";
 import { estadoLabel } from "../core/estados.js";
 import { formatMoney } from "../core/format.js";
@@ -33,10 +34,10 @@ interface Responsable {
 }
 
 const AYUDA_DASHBOARD: HelpContent = {
-  title: "Dashboard — como leerlo",
+  title: "Dashboard — cómo leerlo",
   body: (
     <p>
-      La linea de arriba (Solicitud → Aprobacion → ... → CxP/Devolucion) es
+      La línea de arriba (Solicitud → Aprobación → ... → CxP/Devolución) es
       el mapa del ciclo completo — cada paso navega a su pantalla. Debajo,
       cada tarjeta muestra solo lo que le corresponde decidir o seguir a tu
       rol — no el mismo panel para todos.
@@ -57,14 +58,33 @@ async function total(path: string, query?: Record<string, string>): Promise<numb
   }
 }
 
+/** Ventana de tendencia: [hace 7 días, ahora) frente a [hace 14 días, hace 7 días). */
+const TENDENCIAS: readonly { leafId: string; path: string; campo: string }[] = [
+  { leafId: "com-doc-solicitudes", path: "/api/com/solicitudes", campo: "fechaCreacion" },
+  { leafId: "com-doc-cotizaciones", path: "/api/com/cotizaciones", campo: "fechaCotizacion" },
+  { leafId: "com-doc-ordenes", path: "/api/com/ordenes-compra", campo: "fechaEmision" },
+  { leafId: "com-doc-recepciones", path: "/api/com/recepciones", campo: "fechaRecepcion" },
+];
+
+async function tendencia(path: string, campo: string): Promise<{ actual: number; previo: number }> {
+  const ahora = Date.now();
+  const d7 = new Date(ahora - 7 * 86_400_000).toISOString();
+  const d14 = new Date(ahora - 14 * 86_400_000).toISOString();
+  const [actual, previo] = await Promise.all([
+    total(path, { [`${campo}__gte`]: d7 }),
+    total(path, { [`${campo}__gte`]: d14, [`${campo}__lt`]: d7 }),
+  ]);
+  return { actual, previo };
+}
+
 /** Fila de una lista "esperando a" — reutilizada por Mis solicitudes y Compras. */
 function FilaEsperando(props: { titulo: string; responsable: Responsable | null }): React.ReactElement {
   return (
-    <div className="flex items-center justify-between gap-3 text-[0.82rem]">
-      <span className="truncate" style={{ color: "var(--color-ink)" }}>
+    <div className="flex min-w-0 flex-col gap-0.5 text-[0.82rem] sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <span className="min-w-0 truncate" style={{ color: "var(--color-ink)" }}>
         {props.titulo}
       </span>
-      <span className="shrink-0 whitespace-nowrap" style={{ color: "var(--color-ink-faint)" }}>
+      <span className="min-w-0 text-[0.76rem] sm:shrink-0 sm:whitespace-nowrap sm:text-[0.82rem]" style={{ color: "var(--color-ink-faint)" }}>
         {props.responsable === null
           ? "—"
           : props.responsable.nombre !== null
@@ -82,12 +102,12 @@ function OrdenesPorEstado(props: { data: readonly { estado: string; n: number }[
   if (totalOc === 0) {
     return (
       <p className="text-[0.82rem]" style={{ color: "var(--color-ink-faint)" }}>
-        Aun no hay ordenes de compra registradas.
+        Aún no hay órdenes de compra registradas.
       </p>
     );
   }
   return (
-    <div className="grid gap-1.5" role="img" aria-label="Ordenes de compra por estado">
+    <div className="grid gap-1.5" role="img" aria-label="Órdenes de compra por estado">
       {props.data.map((d) => (
         <div
           key={d.estado}
@@ -141,6 +161,7 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
   const [c, setC] = useState<{
     proveedores: number; solicitudes: number; ordenes: number; recepciones: number; cotizaciones: number; comprasRegistros: number;
   } | null>(null);
+  const [tend, setTend] = useState<Record<string, { actual: number; previo: number }>>({});
   const [ocEstados, setOcEstados] = useState<readonly { estado: string; n: number }[]>([]);
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
   const [misSolicitudes, setMisSolicitudes] = useState<{
@@ -169,6 +190,11 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
         }
       }
       setC({ proveedores, solicitudes, ordenes, recepciones, cotizaciones, comprasRegistros });
+
+      // Tendencia (solo de lo que este rol puede ver): nuevos en 7 días vs los 7 anteriores.
+      const visibles = TENDENCIAS.filter((t) => puedeVer(t.leafId));
+      const filas = await Promise.all(visibles.map(async (t) => [t.leafId, await tendencia(t.path, t.campo)] as const));
+      setTend(Object.fromEntries(filas));
 
       if (puedeVer("com-doc-ordenes")) {
         try {
@@ -262,7 +288,7 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
     { label: "Proveedores", value: c?.proveedores, icon: "truck", tone: "brand", leafId: "com-cat-proveedores" },
     { label: "Solicitudes", value: c?.solicitudes, icon: "clipboard", tone: "navy", leafId: "com-doc-solicitudes" },
     { label: "Cotizaciones", value: c?.cotizaciones, icon: "coins", tone: "brand", leafId: "com-doc-cotizaciones" },
-    { label: "Ordenes de compra", value: c?.ordenes, icon: "cart", tone: "warning", leafId: "com-doc-ordenes" },
+    { label: "Órdenes de compra", value: c?.ordenes, icon: "cart", tone: "warning", leafId: "com-doc-ordenes" },
     { label: "Recepciones", value: c?.recepciones, icon: "package", tone: "success", leafId: "com-doc-recepciones" },
     { label: "Historial de precios", value: c?.comprasRegistros, icon: "chart", tone: "brand", leafId: "com-an-historial" },
   ];
@@ -275,28 +301,9 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
     <div className="grid grid-cols-1 gap-5">
       <PageHeader title="Dashboard de compras" subtitle="Lo que te corresponde seguir, de un vistazo." help={AYUDA_DASHBOARD} />
 
-      <FlowStepper onStep={props.onNavigateById} />
+      <DashboardHero onNavigateById={props.onNavigateById} />
 
-      {/* --- Aprobaciones pendientes (jefe / gerente de area) --- */}
-      {esAprobador && (
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
-                Aprobaciones pendientes de tu equipo
-              </h3>
-              <p className="text-[0.82rem]" style={{ color: "var(--color-ink-soft)" }}>
-                {cantidadBandeja("APROBAR_JEFE") + cantidadBandeja("APROBAR_GERENTE") > 0
-                  ? "Estan esperando tu decision — apruebalas o rechazalas desde Solicitudes."
-                  : "No hay nada esperando tu aprobacion en este momento."}
-              </p>
-            </div>
-            <Button icon="clipboard" variant="secondary" onClick={() => props.onNavigateById("com-doc-solicitudes")}>
-              {cantidadBandeja("APROBAR_JEFE") + cantidadBandeja("APROBAR_GERENTE")}
-            </Button>
-          </div>
-        </Card>
-      )}
+      <FlowStepper onStep={props.onNavigateById} />
 
       {/* --- Mis solicitudes (solicitante / jefe que tambien solicita) --- */}
       {esSolicitante && misSolicitudes !== null && (
@@ -310,14 +317,14 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
           <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
             <KpiCard label="Esperando al jefe" value={String(misSolicitudes.pendienteJefe)} icon="clock" tone="warning" />
             <KpiCard label="Esperando al gerente" value={String(misSolicitudes.pendienteGerente)} icon="clock" tone="warning" />
-            <KpiCard label="En cotizacion" value={String(misSolicitudes.enCotizacion)} icon="coins" tone="brand" />
+            <KpiCard label="En cotización" value={String(misSolicitudes.enCotizacion)} icon="coins" tone="brand" />
             <KpiCard label="Orden generada" value={String(misSolicitudes.ordenGenerada)} icon="check" tone="success" />
             <KpiCard label="Rechazadas" value={String(misSolicitudes.rechazada)} icon="x" tone="danger" />
           </div>
           {esperando.length > 0 && (
             <div className="mt-3 grid gap-1.5 border-t pt-3" style={{ borderColor: "var(--color-line)" }}>
               <span className="text-[0.72rem] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-faint)" }}>
-                Esperando decision — a quien preguntarle
+                Esperando decisión — a quién preguntarle
               </span>
               {esperando.map((e) => (
                 <FilaEsperando key={e.idSolicitud} titulo={`#${e.idSolicitud} · ${e.justificacion}`} responsable={e.responsable} />
@@ -376,17 +383,17 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
                 className="transition-fluent"
                 style={{ cursor: "pointer", borderRadius: "var(--radius-lg)" }}
               >
-                <KpiCard label={k.label} value={k.value === undefined ? "…" : String(k.value)} icon={k.icon} tone={k.tone} />
+                <KpiCard label={k.label} value={k.value === undefined ? "…" : String(k.value)} icon={k.icon} tone={k.tone} tendencia={tend[k.leafId]} />
               </div>
             ))}
           </div>
 
           <Card>
             <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
-              Ordenes de compra por estado
+              Órdenes de compra por estado
             </h3>
             <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
-              Donde estan las ordenes activas del periodo.
+              Dónde están las órdenes activas del periodo.
             </p>
             <OrdenesPorEstado data={ocEstados} />
           </Card>
@@ -402,18 +409,18 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
                 Compras por mes
               </h3>
               <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
-                Monto (GTQ) de ordenes de compra emitidas, ultimos {resumen.meses} meses.
+                Monto (GTQ) de órdenes de compra emitidas, últimos {resumen.meses} meses.
               </p>
               <TimeBars
                 data={resumen.comprasPorMes.map((p) => ({ label: p.label, value: p.monto }))}
                 format={moneyCompact}
-                ariaLabel={`Monto de compras por mes, ultimos ${resumen.meses} meses`}
+                ariaLabel={`Monto de compras por mes, últimos ${resumen.meses} meses`}
                 valueHeader="Monto (GTQ)"
-                emptyText="Aun no se han emitido ordenes de compra."
+                emptyText="Aún no se han emitido órdenes de compra."
               />
               {resumen.proyeccionGasto !== null && (
                 <p className="mt-3 text-[0.78rem]" style={{ color: "var(--color-ink-soft)" }}>
-                  Proyeccion del proximo mes:{" "}
+                  Proyección del próximo mes:{" "}
                   <b style={{ color: "var(--color-heading)" }}>
                     {formatMoney(resumen.proyeccionGasto.proximoMes)}
                   </b>{" "}
@@ -430,14 +437,14 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
                   >
                     en {resumen.proyeccionGasto.tendencia}
                   </b>
-                  . Regresion lineal sobre los ultimos {Math.min(6, resumen.comprasPorMes.length)} meses, no una garantia.
+                  . Regresión lineal sobre los últimos {Math.min(6, resumen.comprasPorMes.length)} meses, no una garantía.
                 </p>
               )}
             </Card>
 
             <Card>
               <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
-                Rotacion de inventario
+                Rotación de inventario
               </h3>
               <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
                 Valor de entradas por compra del mes ÷ existencia valorizada actual.
@@ -445,9 +452,9 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
               <TimeBars
                 data={resumen.rotacion.porMes.map((p) => ({ label: p.label, value: p.rotacion }))}
                 format={veces}
-                ariaLabel={`Rotacion de inventario por mes, ultimos ${resumen.meses} meses`}
-                valueHeader="Rotacion (×)"
-                emptyText="Aun no hay recepciones ni existencia valorizada."
+                ariaLabel={`Rotación de inventario por mes, últimos ${resumen.meses} meses`}
+                valueHeader="Rotación (×)"
+                emptyText="Aún no hay recepciones ni existencia valorizada."
               />
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[0.78rem]" style={{ color: "var(--color-ink-soft)" }}>
                 <span>
@@ -463,19 +470,19 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
           <div className="grid gap-3 lg:grid-cols-3">
             <Card>
               <h3 className="mb-2" style={{ color: "var(--color-heading)" }}>
-                Ahorro de adjudicacion
+                Ahorro de adjudicación
               </h3>
               <Gauge
                 value={resumen.ahorroAdjudicacion.ahorroPonderadoPct}
                 label="Ahorro ponderado por monto"
                 caption={
                   resumen.ahorroAdjudicacion.lineasConAlternativa > 0
-                    ? `${resumen.ahorroAdjudicacion.lineasConAlternativa} lineas con alternativa · promedio simple ${Math.round(resumen.ahorroAdjudicacion.ahorroPromedioPct)} %`
-                    : "Aun sin lineas adjudicadas con alternativa"
+                    ? `${resumen.ahorroAdjudicacion.lineasConAlternativa} líneas con alternativa · promedio simple ${Math.round(resumen.ahorroAdjudicacion.ahorroPromedioPct)} %`
+                    : "Aún sin líneas adjudicadas con alternativa"
                 }
               />
               <p className="mt-2 text-[0.72rem]" style={{ color: "var(--color-ink-faint)" }}>
-                Precio adjudicado vs. el mas caro cotizado para la misma linea: mas alto = mejores negociaciones.
+                Precio adjudicado vs. el más caro cotizado para la misma línea: más alto = mejores negociaciones.
               </p>
             </Card>
 
@@ -530,7 +537,7 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
           <div className="flex items-center gap-2">
             <Icon name="chart" size={18} />
             <p className="text-[0.85rem]" style={{ color: "var(--color-ink-soft)" }}>
-              Tu rol no tiene indicadores propios en este Dashboard todavia.
+              Tu rol no tiene indicadores propios en este Dashboard todavía.
             </p>
           </div>
         </Card>

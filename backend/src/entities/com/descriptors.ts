@@ -166,6 +166,12 @@ export const COM_ARTICULO_PROVEEDOR: EntityDescriptor = buildDescriptor({
   defaultSort: "idArticuloProveedor",
   filterable: ["idArticulo", "idProveedor"],
   sortable: ["idArticuloProveedor", "fechaUltimaCompra"],
+  search: {
+    refs: [
+      { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] },
+      { own: "ID_ARTICULO", table: "INV_ARTICULO", key: "ID_ARTICULO", columns: ["NOMBRE", "CODIGO"] },
+    ],
+  },
 });
 
 // ===========================================================================
@@ -197,8 +203,18 @@ export const COM_SOLICITUD_COMPRA: EntityDescriptor = buildDescriptor({
     "idGrupoCompra",
     "prioridad",
   ],
-  sortable: ["idSolicitud", "estado", "prioridad", "montoEstimado"],
+  sortable: ["idSolicitud", "estado", "prioridad", "montoEstimado", "fechaCreacion"],
   detail: { entityKey: "solicitudDetalle", fk: "ID_SOLICITUD" },
+  search: {
+    refs: [
+      { own: "ID_EMPLEADO_SOLICITANTE", table: "NOM_EMPLEADO", key: "ID_EMPLEADO", columns: ["NOMBRES || ' ' || APELLIDOS", "CODIGO_EMPLEADO"] },
+      { own: "ID_SUCURSAL", table: "NOM_SUCURSAL", key: "ID_SUCURSAL", columns: ["NOMBRE", "CODIGO"] },
+      { own: "ID_GRUPO_COMPRA", table: "COM_GRUPO_COMPRA", key: "ID_GRUPO_COMPRA", columns: ["NOMBRE"] },
+      { own: "ID_CENTRO_COSTO", table: "COM_CENTRO_COSTO", key: "ID_CENTRO_COSTO", columns: ["NOMBRE", "CODIGO"] },
+      // Por lo que se pide: "martillo" encuentra las solicitudes que lo incluyen.
+      { own: "ID_SOLICITUD", table: "COM_SOLICITUD_DETALLE", key: "ID_SOLICITUD", columns: ["DESCRIPCION"] },
+    ],
+  },
 });
 
 export const COM_SOLICITUD_DETALLE: EntityDescriptor = buildDescriptor({
@@ -216,6 +232,7 @@ export const COM_SOLICITUD_DETALLE: EntityDescriptor = buildDescriptor({
     col("FECHA_REQUERIDA", "fechaRequerida", "date"),
   ],
   defaultSort: "idSolicitudDetalle",
+  recientesPrimero: false,
   filterable: ["idSolicitud", "idArticulo"],
   sortable: ["idSolicitudDetalle", "fechaRequerida"],
 });
@@ -257,6 +274,12 @@ export const COM_ACUERDO_PROVEEDOR: EntityDescriptor = buildDescriptor({
   defaultSort: "idAcuerdo",
   filterable: ["idProveedor", "idArticulo", "activo"],
   sortable: ["idAcuerdo", "fechaInicio", "fechaFin"],
+  search: {
+    refs: [
+      { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] },
+      { own: "ID_ARTICULO", table: "INV_ARTICULO", key: "ID_ARTICULO", columns: ["NOMBRE", "CODIGO"] },
+    ],
+  },
   detail: { entityKey: "acuerdoDetalle", fk: "ID_ACUERDO" },
 });
 
@@ -270,6 +293,7 @@ export const COM_ACUERDO_DETALLE: EntityDescriptor = buildDescriptor({
     col("PORCENTAJE_DESCUENTO", "porcentajeDescuento", "number"),
   ],
   defaultSort: "cantidadMinima",
+  recientesPrimero: false,
   filterable: ["idAcuerdo"],
   sortable: ["cantidadMinima", "porcentajeDescuento"],
 });
@@ -290,8 +314,15 @@ export const COM_RFQ_CABECERA: EntityDescriptor = buildDescriptor({
   ],
   defaultSort: "idRfq",
   filterable: ["idSolicitud", "estado"],
-  sortable: ["idRfq", "fechaLimite"],
+  sortable: ["idRfq", "fechaLimite", "fechaEmision", "estado"],
   detail: { entityKey: "rfqProveedor", fk: "ID_RFQ" },
+  search: {
+    idColumns: ["idSolicitud"],
+    refs: [
+      // Proveedores invitados al RFQ.
+      { own: "ID_RFQ", table: "COM_RFQ_PROVEEDOR", key: "ID_RFQ", via: { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] } },
+    ],
+  },
 });
 
 export const COM_RFQ_PROVEEDOR: EntityDescriptor = buildDescriptor({
@@ -304,6 +335,7 @@ export const COM_RFQ_PROVEEDOR: EntityDescriptor = buildDescriptor({
     col("FECHA_INVITACION", "fechaInvitacion", "timestamp", { insertable: false, updatable: false }),
   ],
   defaultSort: "idRfqProveedor",
+  recientesPrimero: false,
   filterable: ["idRfq", "idProveedor"],
   sortable: ["idRfqProveedor"],
 });
@@ -323,8 +355,16 @@ export const COM_COTIZACION_PROVEEDOR: EntityDescriptor = buildDescriptor({
   ],
   defaultSort: "idCotizacion",
   filterable: ["idRfq", "idProveedor", "idMoneda"],
-  sortable: ["idCotizacion", "fechaVencimiento"],
+  sortable: ["idCotizacion", "fechaVencimiento", "fechaCotizacion"],
   detail: { entityKey: "cotizacionDetalle", fk: "ID_COTIZACION" },
+  search: {
+    idColumns: ["idRfq"],
+    refs: [
+      { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] },
+      { own: "ID_MONEDA", table: "COM_MONEDA", key: "ID_MONEDA", columns: ["CODIGO", "NOMBRE"] },
+      { own: "ID_CONDICION_PAGO", table: "COM_CONDICION_PAGO", key: "ID_CONDICION_PAGO", columns: ["NOMBRE"] },
+    ],
+  },
 });
 
 export const COM_COTIZACION_DETALLE: EntityDescriptor = buildDescriptor({
@@ -343,6 +383,7 @@ export const COM_COTIZACION_DETALLE: EntityDescriptor = buildDescriptor({
     col("ADJUDICADO", "adjudicado", "boolLike"),
   ],
   defaultSort: "idCotizacionDetalle",
+  recientesPrimero: false,
   filterable: ["idCotizacion", "idSolicitudDetalle", "adjudicado"],
   sortable: ["idCotizacionDetalle", "precioUnitario"],
 });
@@ -387,6 +428,13 @@ export const COM_ORDEN_COMPRA: EntityDescriptor = buildDescriptor({
   filterable: ["estado", "idProveedor", "idMoneda", "numeroReferencia"],
   sortable: ["idOrdenCompra", "estado", "fechaEmision", "fechaEntregaEsperada"],
   detail: { entityKey: "ordenCompraDetalle", fk: "ID_ORDEN_COMPRA" },
+  search: {
+    refs: [
+      { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] },
+      { own: "ID_MONEDA", table: "COM_MONEDA", key: "ID_MONEDA", columns: ["CODIGO", "NOMBRE"] },
+      { own: "ID_ORDEN_COMPRA", table: "COM_ORDEN_COMPRA_DETALLE", key: "ID_ORDEN_COMPRA", columns: ["DESCRIPCION"] },
+    ],
+  },
 });
 
 export const COM_ORDEN_COMPRA_DETALLE: EntityDescriptor = buildDescriptor({
@@ -409,6 +457,7 @@ export const COM_ORDEN_COMPRA_DETALLE: EntityDescriptor = buildDescriptor({
     virtualCol("SUBTOTAL_CALCULADO", "subtotalCalculado", "number"),
   ],
   defaultSort: "idOcDetalle",
+  recientesPrimero: false,
   filterable: ["idOrdenCompra", "idArticulo", "idCotizacionDetalle"],
   sortable: ["idOcDetalle", "precioUnitario", "cantidad"],
 });
@@ -465,8 +514,17 @@ export const COM_RECEPCION: EntityDescriptor = buildDescriptor({
   ],
   defaultSort: "idRecepcion",
   filterable: ["idOrdenCompra", "idBodega", "estado", "idEmpleadoRecibe"],
-  sortable: ["idRecepcion", "fechaRecepcion"],
+  sortable: ["idRecepcion", "fechaRecepcion", "estado"],
   detail: { entityKey: "recepcionDetalle", fk: "ID_RECEPCION" },
+  search: {
+    idColumns: ["idOrdenCompra"],
+    refs: [
+      // Proveedor de la orden recibida.
+      { own: "ID_ORDEN_COMPRA", table: "COM_ORDEN_COMPRA", key: "ID_ORDEN_COMPRA", via: { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] } },
+      { own: "ID_BODEGA", table: "INV_BODEGA", key: "ID_BODEGA", columns: ["NOMBRE"] },
+      { own: "ID_EMPLEADO_RECIBE", table: "NOM_EMPLEADO", key: "ID_EMPLEADO", columns: ["NOMBRES || ' ' || APELLIDOS", "CODIGO_EMPLEADO"] },
+    ],
+  },
 });
 
 export const COM_RECEPCION_DETALLE: EntityDescriptor = buildDescriptor({
@@ -481,6 +539,7 @@ export const COM_RECEPCION_DETALLE: EntityDescriptor = buildDescriptor({
     col("CANTIDAD_RECHAZADA", "cantidadRechazada", "number"),
   ],
   defaultSort: "idRecepcionDetalle",
+  recientesPrimero: false,
   filterable: ["idRecepcion", "idOcDetalle"],
   sortable: ["idRecepcionDetalle"],
 });
@@ -499,6 +558,14 @@ export const COM_DEVOLUCION_PROVEEDOR: EntityDescriptor = buildDescriptor({
   filterable: ["idRecepcion", "idEmpleadoSolicita"],
   sortable: ["idDevolucion", "fechaDevolucion"],
   detail: { entityKey: "devolucionDetalle", fk: "ID_DEVOLUCION" },
+  search: {
+    idColumns: ["idRecepcion"],
+    refs: [
+      { own: "ID_EMPLEADO_SOLICITA", table: "NOM_EMPLEADO", key: "ID_EMPLEADO", columns: ["NOMBRES || ' ' || APELLIDOS", "CODIGO_EMPLEADO"] },
+      // Proveedor de la orden de la recepcion devuelta.
+      { own: "ID_RECEPCION", table: "COM_RECEPCION", key: "ID_RECEPCION", via: { own: "ID_ORDEN_COMPRA", table: "COM_ORDEN_COMPRA", key: "ID_ORDEN_COMPRA", via: { own: "ID_PROVEEDOR", table: "COM_PROVEEDOR", key: "ID_PROVEEDOR", columns: ["RAZON_SOCIAL", "NOMBRE_COMERCIAL", "NIT"] } } },
+    ],
+  },
 });
 
 export const COM_DEVOLUCION_DETALLE: EntityDescriptor = buildDescriptor({
@@ -511,6 +578,7 @@ export const COM_DEVOLUCION_DETALLE: EntityDescriptor = buildDescriptor({
     col("CANTIDAD_DEVUELTA", "cantidadDevuelta", "number"),
   ],
   defaultSort: "idDevolucionDetalle",
+  recientesPrimero: false,
   filterable: ["idDevolucion", "idRecepcionDetalle"],
   sortable: ["idDevolucionDetalle"],
 });

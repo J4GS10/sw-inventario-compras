@@ -5,7 +5,8 @@
  * registro central. Cero codigo por catalogo.
  */
 
-import { BaseCrudService } from "../BaseCrudService.js";
+import type { BaseCrudService } from "../BaseCrudService.js";
+import { ComCrudService } from "./ComCrudService.js";
 import {
   COM_DESCRIPTORS,
   type ComEntityKey,
@@ -17,9 +18,11 @@ export function buildCrudService<TEntity = Record<string, unknown>>(
   key: ComEntityKey,
 ): BaseCrudService<TEntity> {
   const repo = repositoryFactory().get<TEntity, object, object>(key);
-  const service = new BaseCrudService<TEntity>(repo, {
-    descriptor: COM_DESCRIPTORS[key],
-  });
+  const service = new ComCrudService<TEntity>(
+    repo,
+    { descriptor: COM_DESCRIPTORS[key] },
+    key,
+  );
   // Decorator (Proxy): telemetria de duracion/exito en list/getById/create/
   // update/remove sin tocar la clase base. Antes solo los servicios de flujo lo
   // tenian; ahora tambien los ~14 CRUD genericos.

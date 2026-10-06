@@ -67,8 +67,8 @@ const AYUDA_REPORTES = {
 
 const TABS: readonly { id: ReporteId; label: string }[] = [
   { id: "gasto", label: "Gasto por proveedor" },
-  { id: "pendientes", label: "Ordenes pendientes de recibir" },
-  { id: "desempeno", label: "Desempeno de proveedores" },
+  { id: "pendientes", label: "Órdenes pendientes de recibir" },
+  { id: "desempeno", label: "Desempeño de proveedores" },
   { id: "riesgo", label: "Riesgo de proveedores" },
 ];
 
@@ -96,7 +96,8 @@ function RangoFechas(props: {
           onChange={(v: FieldValue) => props.onChange({ ...props.value, desde: String(v ?? "") })}
         />
         <Field
-          def={{ name: "hasta", label: "Hasta", kind: "date" }}
+          def={{ name: "hasta", label: "Hasta", kind: "date", minDateField: "desde" }}
+          values={{ desde: props.value.desde, hasta: props.value.hasta }}
           value={props.value.hasta}
           onChange={(v: FieldValue) => props.onChange({ ...props.value, hasta: String(v ?? "") })}
         />
@@ -125,7 +126,7 @@ const pendientesColumns: readonly Column<OcPendienteItem>[] = [
   { key: "idOrdenCompra", header: "OC", type: "text", value: (r) => `OC-${r.idOrdenCompra}` },
   { key: "proveedor", header: "Proveedor", type: "text", value: (r) => r.proveedor, grow: true },
   { key: "estado", header: "Estado", type: "estado", value: (r) => r.estado },
-  { key: "fechaEmision", header: "Emision", type: "date", value: (r) => r.fechaEmision },
+  { key: "fechaEmision", header: "Emisión", type: "date", value: (r) => r.fechaEmision },
   {
     key: "fechaEntregaEsperada",
     header: "Entrega esp.",
@@ -133,8 +134,8 @@ const pendientesColumns: readonly Column<OcPendienteItem>[] = [
     value: (r) => r.fechaEntregaEsperada,
     priority: "secondary",
   },
-  { key: "diasTranscurridos", header: "Dias trans.", type: "num", value: (r) => r.diasTranscurridos, priority: "secondary" },
-  { key: "diasVencida", header: "Dias venc.", type: "num", value: (r) => r.diasVencida },
+  { key: "diasTranscurridos", header: "Días trans.", type: "num", value: (r) => r.diasTranscurridos, priority: "secondary" },
+  { key: "diasVencida", header: "Días venc.", type: "num", value: (r) => r.diasVencida },
   { key: "monto", header: "Monto", type: "money", value: (r) => r.monto, priority: "secondary" },
 ];
 
@@ -143,7 +144,7 @@ const desempenoColumns: readonly Column<DesempenoProveedorItem>[] = [
   { key: "ordenesRecibidas", header: "OC recib.", type: "num", width: 90, value: (r) => r.ordenesRecibidas },
   {
     key: "diasPromedioEntrega",
-    header: "Dias entrega",
+    header: "Días entrega",
     type: "num",
     width: 130,
     value: (r) => r.diasPromedioEntrega ?? undefined,
@@ -173,11 +174,11 @@ const NIVEL_LABEL: Record<RiesgoProveedorItem["nivel"], string> = {
 
 const riesgoColumns: readonly Column<RiesgoProveedorItem>[] = [
   { key: "proveedor", header: "Proveedor", type: "text", value: (r) => r.proveedor, grow: true },
-  { key: "calificacion", header: "Calificacion", type: "text", width: 100, value: (r) => r.calificacion ?? "—" },
+  { key: "calificacion", header: "Calificación", type: "text", width: 100, value: (r) => r.calificacion ?? "—" },
   { key: "ordenesRecibidas", header: "OC recib.", type: "num", width: 80, value: (r) => r.ordenesRecibidas },
   {
     key: "diasPromedioEntrega",
-    header: "Dias entrega",
+    header: "Días entrega",
     type: "num",
     width: 110,
     value: (r) => r.diasPromedioEntrega ?? undefined,
@@ -196,7 +197,7 @@ const riesgoColumns: readonly Column<RiesgoProveedorItem>[] = [
     header: "Escasez",
     type: "text",
     width: 80,
-    value: (r) => (r.tieneArticulosEnEscasez ? "Si" : "No"),
+    value: (r) => (r.tieneArticulosEnEscasez ? "Sí" : "No"),
     priority: "secondary",
   },
   {
@@ -335,7 +336,7 @@ export default function ReportesView(): React.ReactElement {
     <div className="grid grid-cols-1 gap-4">
       <PageHeader
         title="Reportes"
-        subtitle="Gasto, atrasos y desempeno de proveedores, listos para exportar a PDF."
+        subtitle="Gasto, atrasos y desempeño de proveedores, listos para exportar a PDF."
         help={AYUDA_REPORTES}
       />
 
@@ -352,7 +353,7 @@ export default function ReportesView(): React.ReactElement {
             <>
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
                 <KpiCard label="Monto total" value={formatMoney(gasto.montoTotal)} icon="coins" tone="brand" />
-                <KpiCard label="Ordenes de compra" value={String(gasto.ordenesTotal)} icon="cart" tone="navy" />
+                <KpiCard label="Órdenes de compra" value={String(gasto.ordenesTotal)} icon="cart" tone="navy" />
                 <KpiCard label="Proveedores" value={String(gasto.proveedores.length)} icon="truck" tone="success" />
               </div>
               <div className="flex justify-end">
@@ -364,8 +365,9 @@ export default function ReportesView(): React.ReactElement {
                 columns={gastoColumns}
                 rows={gasto.proveedores}
                 rowKey={(r) => String(r.idProveedor)}
+                localSearch={{ placeholder: "Buscar proveedor, NIT…" }}
                 loading={loadingGasto}
-                emptyTitle="Sin ordenes de compra en el periodo"
+                emptyTitle="Sin órdenes de compra en el periodo"
               />
             </>
           )}
@@ -384,14 +386,14 @@ export default function ReportesView(): React.ReactElement {
           {pendientes !== null && (
             <>
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-                <KpiCard label="Ordenes pendientes" value={String(pendientes.totalOrdenes)} icon="cart" tone="navy" />
+                <KpiCard label="Órdenes pendientes" value={String(pendientes.totalOrdenes)} icon="cart" tone="navy" />
                 <KpiCard
                   label="Vencidas"
                   value={String(pendientes.totalVencidas)}
                   icon="clock"
                   tone={pendientes.totalVencidas > 0 ? "warning" : "success"}
                 />
-                <KpiCard label="Monto en transito" value={formatMoney(pendientes.montoTotal)} icon="coins" tone="brand" />
+                <KpiCard label="Monto en tránsito" value={formatMoney(pendientes.montoTotal)} icon="coins" tone="brand" />
               </div>
               <div className="flex justify-end">
                 <Button
@@ -407,8 +409,9 @@ export default function ReportesView(): React.ReactElement {
                 columns={pendientesColumns}
                 rows={pendientes.ordenes}
                 rowKey={(r) => String(r.idOrdenCompra)}
+                localSearch={{ placeholder: "Buscar por proveedor, orden (OC-12), estado…", text: (r) => `${Object.values(r).filter((v) => typeof v !== "object").join(" ")} OC-${r.idOrdenCompra}` }}
                 loading={loadingPendientes}
-                emptyTitle="No hay ordenes de compra pendientes de recibir"
+                emptyTitle="No hay órdenes de compra pendientes de recibir"
                 onReload={() => void cargarPendientes()}
               />
             </>
@@ -434,7 +437,7 @@ export default function ReportesView(): React.ReactElement {
             <>
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
                 <KpiCard
-                  label="Dias promedio de entrega"
+                  label="Días promedio de entrega"
                   value={desempeno.diasPromedioGeneral === null ? "—" : `${desempeno.diasPromedioGeneral} d`}
                   icon="clock"
                   tone="brand"
@@ -455,6 +458,7 @@ export default function ReportesView(): React.ReactElement {
                 columns={desempenoColumns}
                 rows={desempeno.proveedores}
                 rowKey={(r) => String(r.idProveedor)}
+                localSearch={{ placeholder: "Buscar proveedor…" }}
                 loading={loadingDesempeno}
                 emptyTitle="Sin recepciones registradas en el periodo"
               />
@@ -476,7 +480,7 @@ export default function ReportesView(): React.ReactElement {
             <>
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
                 <KpiCard
-                  label="Dias promedio de entrega (general)"
+                  label="Días promedio de entrega (general)"
                   value={riesgo.diasPromedioGeneral === null ? "—" : `${riesgo.diasPromedioGeneral} d`}
                   icon="clock"
                   tone="brand"
@@ -498,8 +502,9 @@ export default function ReportesView(): React.ReactElement {
                 columns={riesgoColumns}
                 rows={riesgo.proveedores}
                 rowKey={(r) => String(r.idProveedor)}
+                localSearch={{ placeholder: "Buscar proveedor, nivel de riesgo…" }}
                 loading={loadingRiesgo}
-                emptyTitle="Sin proveedores con ordenes recibidas todavia"
+                emptyTitle="Sin proveedores con órdenes recibidas todavía"
               />
             </>
           )}

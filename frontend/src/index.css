@@ -42,7 +42,7 @@
   --color-line: rgba(0, 0, 0, 0.06); /* border */
   --color-ink: #1d1d1f; /* text */
   --color-ink-soft: #6e6e73; /* textSub */
-  --color-ink-faint: #aeaeb2; /* textMuted */
+  --color-ink-faint: #767680; /* textMuted — 4,6:1 sobre blanco (antes #aeaeb2, 2,3:1: ilegible) */
   --color-heading: #1d1d1f; /* titulos/valores (adapta en oscuro) */
   --color-structural: #6e6e73; /* bordes en hover de campos */
 
@@ -415,12 +415,35 @@ textarea,
      ancho fijo por tipo de dato + un ancho minimo en <table>, asi una tabla ancha
      hace SCROLL horizontal dentro de .table-scroll en vez de aplastar columnas de
      texto en filas altas (skills/patron-diseno.md §11 "tablas adaptables"). */
+  /* El TEXTO usa la fuente normal (se lee de corrido); la monoespaciada queda para numeros y
+     codigos (.num / .mono), donde alinea digitos. */
   .data-table {
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+  }
+  .data-table .num,
+  .data-table .mono {
     font-family: var(--font-data);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
+  }
+  /* Jerarquia: la columna principal (numero / nombre) manda; las de apoyo se atenuan. */
+  .data-table tbody td.col-principal {
+    font-weight: 600;
+    color: var(--color-heading);
+  }
+  .data-table tbody td.col-apoyo {
+    color: var(--color-ink-soft);
+  }
+  /* Densidad: comoda (por defecto) o compacta (mas filas por pantalla). */
+  :root[data-density="compact"] .data-table tbody td {
+    padding: 0.28rem 0.7rem;
+    font-size: 0.78rem;
+  }
+  :root[data-density="compact"] .data-table thead th {
+    padding: 0.45rem 0.7rem;
   }
   .data-table thead th {
     position: sticky;
@@ -444,6 +467,33 @@ textarea,
     box-shadow:
       0 1px 0 var(--color-line),
       0 4px 8px -4px rgba(0, 0, 0, 0.12);
+  }
+  /* Encabezados siempre en la fuente de texto (aunque la columna sea numerica) y sin recortar el rotulo. */
+  .data-table thead th.num {
+    font-family: var(--font-sans);
+    font-size: 11px;
+  }
+  /* Acciones de fila SIEMPRE a la vista: si la tabla hace scroll horizontal, esta columna queda fija a la derecha. */
+  .data-table .col-acciones {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--color-surface);
+    box-shadow: -10px 0 8px -8px rgba(0, 0, 0, 0.14);
+  }
+  .data-table thead th.col-acciones {
+    z-index: 4;
+    background-color: var(--table-head-bg);
+  }
+  .data-table tbody tr:hover td.col-acciones {
+    background: var(--color-brand-050);
+  }
+  /* Casillas de seleccion y "+" de detalle: celdas estrechas, sin elipsis. */
+  .data-table .col-select {
+    padding-inline: 0.5rem;
+    overflow: visible;
+    text-overflow: clip;
+    text-align: center;
   }
   .data-table thead th:first-child {
     border-top-left-radius: var(--radius-md);
@@ -520,5 +570,278 @@ textarea,
     100% {
       background-position: 0 50%;
     }
+  }
+}
+
+/* El buscador de las tablas trae su propio boton "x" (limpiar + Esc): se oculta el nativo para no duplicarlo. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* El foco del buscador se muestra en el contenedor completo (lupa + texto + x), no en el input interno. */
+.search-box:focus-within {
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px var(--color-brand-050);
+}
+
+/* ---------------------------------------------------------------------------
+ * Proporcion aurea (phi = 1.618) y escala de espaciado de Fibonacci.
+ *   espaciado: 5 · 8 · 13 · 21 · 34 · 55 px  (cada paso ~ x1.618 del anterior)
+ *   formularios de documento: formulario 61.8 % | resumen 38.2 %  (1.618fr : 1fr)
+ * --------------------------------------------------------------------------- */
+:root {
+  --phi: 1.618;
+  --sp-1: 5px;
+  --sp-2: 8px;
+  --sp-3: 13px;
+  --sp-4: 21px;
+  --sp-5: 34px;
+  --sp-6: 55px;
+}
+
+.doc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+@media (min-width: 900px) {
+  .doc-layout {
+    grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr);
+    gap: var(--sp-5);
+  }
+}
+.doc-resumen {
+  align-self: start;
+  border: 1px solid var(--color-line);
+  border-radius: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface);
+}
+@media (min-width: 900px) {
+  .doc-resumen {
+    position: sticky;
+    top: 0;
+    padding: var(--sp-4);
+  }
+}
+@media (max-width: 899px) {
+  /* En movil el resumen y el avance van ARRIBA: lo importante antes de teclear. */
+  .doc-resumen {
+    order: -1;
+  }
+}
+
+@media (max-width: 899px) {
+  /* En movil el resumen se reduce a lo esencial: titulo + avance + lo que falta. */
+  .doc-resumen .doc-datos {
+    display: none;
+  }
+  .doc-resumen {
+    padding: var(--sp-3);
+  }
+}
+
+/* ---- Accesibilidad -------------------------------------------------------- */
+/* Foco SIEMPRE visible al navegar con teclado (no al hacer clic). */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.search-box :focus-visible,
+.field-control:focus-visible {
+  outline: none;
+}
+/* Quien pide menos movimiento (sistema operativo) no ve animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Enlace "saltar al contenido" para lectores de pantalla y teclado. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 2000;
+  background: var(--color-brand);
+  color: #fff;
+  padding: 8px 13px;
+  border-radius: 8px;
+}
+.skip-link:focus {
+  left: 8px;
+}
+
+/* Fila clicable: abre el detalle; el cursor y el hover lo anuncian. */
+/* Panel de detalle abierto: la pagina deja sitio a su derecha para que la lista siga visible. */
+@media (min-width: 1180px) {
+  html[data-drawer="open"] main {
+    padding-right: 500px;
+    transition: padding-right 160ms ease;
+  }
+}
+@keyframes filaNueva {
+  0%, 60% { background: var(--color-brand-050); box-shadow: inset 3px 0 0 var(--color-brand); }
+  100% { background: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+.data-table tbody tr.fila-nueva td {
+  animation: filaNueva 4s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .data-table tbody tr.fila-nueva td { animation: none; background: var(--color-brand-050); }
+}
+.data-table tbody tr.fila-clicable {
+  cursor: pointer;
+}
+.data-table tbody tr.fila-clicable:focus-visible td {
+  background: var(--color-brand-050);
+}
+
+@keyframes estadoPulso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Movil (<= 640 px): los modales son una HOJA que sube desde abajo (se alcanza con el pulgar),
+ * con su pie de acciones siempre visible; la accion principal de cada pantalla ("Nuevo") es un
+ * boton flotante.
+ * --------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .modal-wrap {
+    align-items: flex-end;
+    padding: 0 !important;
+  }
+  .modal-card {
+    max-width: 100% !important;
+    max-height: 94dvh;
+    display: flex;
+    flex-direction: column;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: var(--sp-4);
+    border-top-right-radius: var(--sp-4);
+    animation: hojaSube 220ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .modal-head {
+    flex: none;
+    position: relative;
+    padding-top: var(--sp-4);
+  }
+  .modal-head::before {
+    /* asa de la hoja */
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    margin-left: -19px;
+    border-radius: 999px;
+    background: var(--color-line);
+  }
+  .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-foot {
+    flex: none;
+    padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+    background: var(--color-surface);
+  }
+  .modal-foot .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 44px;
+  }
+  /* Boton flotante de la accion principal de la pantalla. */
+  .page-actions > .btn-primary:first-child {
+    position: fixed;
+    right: var(--sp-4);
+    bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px));
+    z-index: 40;
+    min-height: 52px;
+    padding-inline: var(--sp-4);
+    border-radius: 999px;
+    box-shadow: var(--shadow-lg);
+  }
+  main {
+    padding-bottom: 88px;
+  }
+  .menu-item {
+    min-height: 48px;
+    font-size: 0.95rem;
+  }
+  /* Objetivos tactiles de al menos 44 px. */
+  .btn,
+  .field-control {
+    min-height: 44px;
+  }
+}
+@keyframes hojaSube {
+  from { transform: translateY(40px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Menu de acciones de fila (dibujado fuera de la tabla). */
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--color-brand-050);
+  outline: none;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: var(--overlay);
+}
+@media (min-width: 1180px) {
+  .drawer-backdrop { display: none; }
+}
+
+/* Pista de scroll horizontal: cuando hay columnas fuera de vista, un boton las trae (no hay que adivinar el scroll). */
+.table-scroll-hint {
+  position: absolute;
+  bottom: 14px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+}
+.table-scroll-hint button {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-lg);
+}
+.table-scroll-hint button:hover {
+  background: var(--color-brand-050);
+}
+
+/* Accion principal discreta: solo al pasar el cursor, enfocar la fila o con la fila resaltada (en tactil siempre visible). */
+@media (hover: hover) {
+  .data-table tbody tr .accion-al-pasar {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .data-table tbody tr:hover .accion-al-pasar,
+  .data-table tbody tr:focus-within .accion-al-pasar,
+  .data-table tbody tr.fila-nueva .accion-al-pasar,
+  .data-table tbody tr .accion-al-pasar:focus-visible {
+    opacity: 1;
   }
 }

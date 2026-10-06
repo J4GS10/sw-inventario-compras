@@ -16,6 +16,8 @@ export interface ListQuery {
   readonly sort?: string;
   readonly order?: "asc" | "desc";
   readonly filters?: Readonly<Record<string, string | number | boolean>>;
+  /** Busqueda global (`?q=`): cada palabra debe aparecer en algun campo del registro. */
+  readonly search?: string;
 }
 
 export interface IRepository<TEntity> {
@@ -55,6 +57,7 @@ export abstract class HttpRepository<TEntity> implements IRepository<TEntity> {
     };
     if (query?.sort !== undefined) p["sort"] = query.sort;
     if (query?.order !== undefined) p["order"] = query.order;
+    if (query?.search !== undefined && query.search.trim() !== "") p["q"] = query.search.trim();
     for (const [k, v] of Object.entries(query?.filters ?? {})) p[k] = v;
     return p;
   }

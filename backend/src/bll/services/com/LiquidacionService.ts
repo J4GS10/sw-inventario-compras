@@ -27,6 +27,12 @@ import {
   type FacturaPendienteLiquidacionRow,
 } from "../../../dal/repositories/com/CompraReadRepository.js";
 import { ReconciliacionService, type TresWayMatchReport } from "./ReconciliacionService.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { aDia, hoy, sumarDias } from "../../../common/util/fechas.js";
+import { recepcionRepository, ordenCompraRepository } from "../../../dal/repositories/com/index.js";
+
+/** Un pago puede programarse (cheque posfechado / transferencia agendada) hasta 90 dias adelante. */
+export const DIAS_MAX_PAGO_FUTURO = 90;
 
 export type FormaPago = "CHEQUE" | "TRANSFERENCIA";
 
@@ -50,7 +56,7 @@ const ORDEN_BUCKETS: readonly { id: BucketPagoRow["bucket"]; etiqueta: string }[
   { id: "SEM2", etiqueta: "Semana 2" },
   { id: "SEM3", etiqueta: "Semana 3" },
   { id: "SEM4", etiqueta: "Semana 4" },
-  { id: "DESPUES", etiqueta: "Despues de 4 semanas" },
+  { id: "DESPUES", etiqueta: "Después de 4 semanas" },
   { id: "SIN_FECHA", etiqueta: "Sin fecha de vencimiento" },
 ];
 
@@ -68,14 +74,34 @@ export interface LiquidarInput {
 
 interface FacturaRow {
   readonly idFacturaProveedor: number;
+  readonly idRecepcion: number | null;
   readonly estado: string | null;
 }
 
-function req(value: string | undefined, campo: string): string {
-  if (value === undefined || value.trim() === "") {
-    throw new ValidationError(`${campo} es obligatorio`);
-  }
-  return value;
+/**
+ * Coherencia cronologica de la liquidacion (funcion pura, probada sin BD):
+ *   emision de la OC <= fecha del documento <= hoy
+ *   emision de la OC <= fecha de emision del DTE <= hoy
+ *   fecha del documento <= fecha de pago <= hoy + 90 dias
+ * Una factura no puede ser anterior a la orden que la origina, ni estar fechada
+ * en el futuro; y no se paga antes de que exista la factura.
+ */
+export function validarFechasLiquidacion(
+  v: Validacion,
+  f: { fechaEmision: unknown; fechaDocumento: unknown; fechaPago: unknown },
+  diaOrden: string | null,
+  ahora?: Date,
+): void {
+  const tope = hoy(ahora);
+  const emision = v.dia("fechaEmision", "La fecha de emisión", f.fechaEmision);
+  const documento = v.dia("fechaDocumento", "La fecha del documento", f.fechaDocumento);
+  const pago = v.dia("fechaPago", "La fecha de pago", f.fechaPago);
+  v.noAnteriorA("fechaDocumento", "La fecha del documento", documento, diaOrden, "la fecha de la orden de compra");
+  v.noAnteriorA("fechaEmision", "La fecha de emisión", emision, diaOrden, "la fecha de la orden de compra");
+  v.noPosteriorA("fechaDocumento", "La fecha del documento", documento, tope, "hoy");
+  v.noPosteriorA("fechaEmision", "La fecha de emisión", emision, tope, "hoy");
+  v.noAnteriorA("fechaPago", "La fecha de pago", pago, documento, "la fecha del documento");
+  v.noPosteriorA("fechaPago", "La fecha de pago", pago, sumarDias(tope, DIAS_MAX_PAGO_FUTURO), `hoy + ${DIAS_MAX_PAGO_FUTURO} días`);
 }
 
 export class LiquidacionService extends TransactionalService {
@@ -127,31 +153,50 @@ export class LiquidacionService extends TransactionalService {
     input: LiquidarInput,
     ctx: AuditContext,
   ): Promise<{ readonly idFacturaProveedor: number; readonly idContrasena: number }> {
-    req(input.numeroDte, "Numero de DTE");
-    req(input.serieDte, "Serie de DTE");
-    req(input.fechaEmision, "Fecha de emision");
-    req(input.fechaDocumento, "Fecha del documento");
-    req(input.fechaPago, "Fecha de pago");
-    req(input.banco, "Banco");
-    req(input.numeroReferencia, "Numero de referencia de pago");
-    if (!Number.isFinite(input.montoTotal) || input.montoTotal <= 0) {
-      throw new ValidationError("Monto total debe ser mayor a 0");
+    const v = new Validacion();
+    v.texto("numeroDte", "El número de DTE", input.numeroDte, { max: 50 });
+    v.texto("serieDte", "La serie de DTE", input.serieDte, { max: 50 });
+    v.texto("banco", "El banco", input.banco, { max: 50 });
+    v.texto("numeroReferencia", "El número de referencia de pago", input.numeroReferencia, { max: 20 });
+    const monto = v.positivo("montoTotal", "El monto total", input.montoTotal);
+    if (monto !== null && (monto >= 1e12 || Math.abs(Math.round(monto * 100) / 100 - monto) > 1e-9)) {
+      v.error("montoTotal", "El monto total admite máximo 2 decimales y menos de 1,000,000,000,000");
     }
     if (input.formaPago !== "CHEQUE" && input.formaPago !== "TRANSFERENCIA") {
-      throw new ValidationError("Forma de pago debe ser CHEQUE o TRANSFERENCIA");
+      v.error("formaPago", "La forma de pago debe ser CHEQUE o TRANSFERENCIA");
     }
+    v.lanzarSiHay("Liquidación inválida");
 
     return this.runInTransaction(async (scope: TransactionScope) => {
       const { conn } = scope;
       const facturas = facturaProveedorRepository();
+      // Serializa: dos liquidaciones simultaneas de la misma factura no pagan dos veces.
+      await facturas.lockById(idFacturaProveedor, conn);
       const factura = (await facturas.findById(idFacturaProveedor, conn)) as FacturaRow | null;
       if (factura === null) throw new NotFoundError("CXP_FACTURA_PROVEEDOR", idFacturaProveedor);
       if (factura.estado === "PAGADA") {
-        throw new BusinessRuleError("Esta factura ya esta liquidada.");
+        throw new BusinessRuleError("Esta factura ya está liquidada.");
       }
       if (factura.estado === "ANULADA") {
-        throw new BusinessRuleError("Esta factura esta anulada; no se puede liquidar.");
+        throw new BusinessRuleError("Esta factura está anulada; no se puede liquidar.");
       }
+
+      // Fecha de la OC de origen (factura -> recepcion -> orden): piso de las fechas del documento.
+      let diaOrden: string | null = null;
+      if (factura.idRecepcion !== null) {
+        const rec = (await recepcionRepository().findById(factura.idRecepcion, conn)) as
+          | { idOrdenCompra: number }
+          | null;
+        if (rec !== null) {
+          const oc = (await ordenCompraRepository().findById(rec.idOrdenCompra, conn)) as
+            | { fechaEmision?: unknown }
+            | null;
+          diaOrden = aDia(oc?.fechaEmision);
+        }
+      }
+      const fechas = new Validacion();
+      validarFechasLiquidacion(fechas, input, diaOrden);
+      fechas.lanzarSiHay("Fechas inválidas");
 
       await facturas.update(
         idFacturaProveedor,

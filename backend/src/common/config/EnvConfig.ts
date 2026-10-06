@@ -130,7 +130,7 @@ export class EnvConfig {
           readFirst(["JWT_SECRET"]) ??
           (nodeEnv === "production"
             ? (() => {
-                throw new Error("JWT_SECRET es obligatorio en produccion");
+                throw new Error("JWT_SECRET es obligatorio en producción");
               })()
             : "dev-insecure-secret-change-me"),
         jwtExpiresIn: readFirst(["JWT_EXPIRES_IN"]) ?? "8h",

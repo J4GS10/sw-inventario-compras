@@ -15,6 +15,14 @@ import type {
 export interface IRepository<TEntity, TCreate, TUpdate> {
   findById(id: number, conn?: Connection): Promise<TEntity | null>;
 
+  /**
+   * Bloquea la fila (SELECT ... FOR UPDATE) hasta el fin de la transaccion del
+   * llamador. Serializa las operaciones concurrentes sobre el mismo documento
+   * (devoluciones, recepciones, cotizaciones...) cuyas reglas dependen de un
+   * acumulado leido antes de escribir. Devuelve false si la fila no existe.
+   */
+  lockById(id: number, conn: Connection): Promise<boolean>;
+
   findAll(query: PageQuery, conn?: Connection): Promise<Paginated<TEntity>>;
 
   create(dto: TCreate, ctx: AuditContext, conn?: Connection): Promise<TEntity>;

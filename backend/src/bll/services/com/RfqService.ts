@@ -4,6 +4,7 @@
  * Herencia de TransactionalService; StateMachine para ESTADO; Observer al cerrar.
  */
 
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
   BusinessRuleError,
@@ -19,6 +20,9 @@ import {
 import { CompraReadRepository } from "../../../dal/repositories/com/CompraReadRepository.js";
 import { solicitudIdsEnAlcance } from "./alcanceDocumentos.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { aDia } from "../../../common/util/fechas.js";
+import { validarFechaLimiteRfq } from "../../compras/reglasDocumentos.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type { RfqEstado, SolicitudCompra } from "../../../entities/com/models.js";
 import type { WithDetails } from "../../../dal/contracts/IHeaderDetailRepository.js";
@@ -43,6 +47,16 @@ interface RfqProveedor {
   readonly idProveedor: number;
 }
 
+interface ProveedorFila {
+  readonly idProveedor: number;
+  readonly razonSocial: string;
+  readonly estado: string | null;
+}
+
+interface LineaFecha {
+  readonly fechaRequerida: unknown;
+}
+
 export class RfqService extends TransactionalService {
   /** El flujo de compras exige pedir tres cotizaciones a proveedores distintos. */
   public static readonly MIN_PROVEEDORES = 3;
@@ -58,6 +72,43 @@ export class RfqService extends TransactionalService {
     object,
     object
   >("rfqProveedor");
+
+  private readonly proveedorRepo = repositoryFactory().get<ProveedorFila, object, object>(
+    "proveedor",
+  );
+
+  /** Ultima fecha en que la solicitud necesita la mercaderia (tope de la fecha limite del RFQ). */
+  private async ultimaFechaRequerida(
+    idSolicitud: number,
+    conn: import("oracledb").Connection,
+  ): Promise<string | null> {
+    const lineas = (await this.solicitudRepo.listDetails(idSolicitud, conn)) as readonly LineaFecha[];
+    let ultima: string | null = null;
+    for (const l of lineas) {
+      const d = aDia(l.fechaRequerida);
+      if (d !== null && (ultima === null || d > ultima)) ultima = d;
+    }
+    return ultima;
+  }
+
+  /** Cada proveedor invitado debe existir y estar activo. */
+  private async assertProveedoresActivos(
+    ids: readonly number[],
+    conn: import("oracledb").Connection,
+  ): Promise<void> {
+    const problemas: string[] = [];
+    for (const id of ids) {
+      const prov = await this.proveedorRepo.findById(id, conn);
+      if (prov === null) problemas.push(`el proveedor ${id} no existe`);
+      else if (prov.estado === "I") problemas.push(`${prov.razonSocial} está inactivo`);
+    }
+    if (problemas.length > 0) {
+      throw new ValidationError(
+        `No se puede invitar: ${problemas.join("; ")}.`,
+        problemas.map((m) => ({ field: "proveedores", message: m })),
+      );
+    }
+  }
 
   public async listar(
     query: PageQuery,
@@ -99,7 +150,7 @@ export class RfqService extends TransactionalService {
   ): Promise<WithDetails<RfqHeader, RfqProveedor>> {
     const b = this.asObject(body);
     const idSolicitud = Number(b["idSolicitud"]);
-    const fechaLimite = String(b["fechaLimite"] ?? "");
+    const fechaLimite = typeof b["fechaLimite"] === "string" ? b["fechaLimite"].trim() : "";
     const proveedores = [
       ...new Set(
         (Array.isArray(b["proveedores"]) ? (b["proveedores"] as unknown[]) : [])
@@ -107,8 +158,8 @@ export class RfqService extends TransactionalService {
           .filter((n) => Number.isInteger(n) && n > 0),
       ),
     ];
-    if (!Number.isInteger(idSolicitud) || fechaLimite === "") {
-      throw new ValidationError("Datos de RFQ invalidos", [
+    if (!Number.isInteger(idSolicitud) || idSolicitud <= 0 || fechaLimite === "") {
+      throw new ValidationError("Datos de RFQ inválidos", [
         { message: "idSolicitud y fechaLimite son obligatorios" },
       ]);
     }
@@ -116,7 +167,7 @@ export class RfqService extends TransactionalService {
     if (proveedores.length < RfqService.MIN_PROVEEDORES) {
       throw new ValidationError(
         `Debe invitar al menos ${RfqService.MIN_PROVEEDORES} proveedores distintos al RFQ`,
-        [{ field: "proveedores", message: `minimo ${RfqService.MIN_PROVEEDORES}` }],
+        [{ field: "proveedores", message: `mínimo ${RfqService.MIN_PROVEEDORES}` }],
       );
     }
 
@@ -131,6 +182,16 @@ export class RfqService extends TransactionalService {
           `La solicitud ${idSolicitud} (${sol.estado}) no admite RFQ`,
         );
       }
+      if (sol.estado !== "EN_COTIZACION") {
+        throw new BusinessRuleError(
+          `La solicitud ${idSolicitud} aún está en aprobación (${sol.estado}); ` +
+            "solo se pide cotización de una solicitud aprobada por jefe y gerente.",
+        );
+      }
+      const reglas = new Validacion();
+      validarFechaLimiteRfq(reglas, fechaLimite, await this.ultimaFechaRequerida(idSolicitud, conn));
+      reglas.lanzarSiHay("Fecha límite inválida");
+      await this.assertProveedoresActivos(proveedores, conn);
 
       const cabecera = validateAgainstDescriptor(
         COM_DESCRIPTORS.rfqCabecera,
@@ -146,6 +207,7 @@ export class RfqService extends TransactionalService {
           [fkProp],
         ),
       );
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       return this.repo.createWithDetails(cabecera, invitados, ctx, conn) as Promise<
         WithDetails<RfqHeader, RfqProveedor>
       >;
@@ -159,7 +221,7 @@ export class RfqService extends TransactionalService {
     ctx: AuditContext,
   ): Promise<RfqHeader> {
     const b = this.asObject(body);
-    const fechaLimite = String(b["fechaLimite"] ?? "");
+    const fechaLimite = typeof b["fechaLimite"] === "string" ? b["fechaLimite"].trim() : "";
     if (fechaLimite === "") {
       throw new ValidationError("fechaLimite es obligatoria", [
         { field: "fechaLimite", message: "obligatorio" },
@@ -170,9 +232,12 @@ export class RfqService extends TransactionalService {
       if (rfq === null) throw new NotFoundError("COM_RFQ_CABECERA", id);
       if (rfq.estado !== "ABIERTO") {
         throw new ValidationError(
-          `El RFQ ${id} esta ${rfq.estado}; solo se edita mientras esta ABIERTO`,
+          `El RFQ ${id} está ${rfq.estado}; solo se edita mientras está ABIERTO`,
         );
       }
+      const reglas = new Validacion();
+      validarFechaLimiteRfq(reglas, fechaLimite, await this.ultimaFechaRequerida(rfq.idSolicitud, conn));
+      reglas.lanzarSiHay("Fecha límite inválida");
       const clean = validateAgainstDescriptor(
         COM_DESCRIPTORS.rfqCabecera,
         { fechaLimite },
@@ -188,14 +253,29 @@ export class RfqService extends TransactionalService {
     ctx: AuditContext,
   ): Promise<RfqProveedor> {
     const idProveedor = Number(this.asObject(body)["idProveedor"]);
-    if (!Number.isInteger(idProveedor)) {
+    if (!Number.isInteger(idProveedor) || idProveedor <= 0) {
       throw new ValidationError("idProveedor es obligatorio");
     }
     return this.runInTransaction(async ({ conn }) => {
       const rfq = (await this.repo.findById(id, conn)) as RfqHeader | null;
       if (rfq === null) throw new NotFoundError("COM_RFQ_CABECERA", id);
       if (rfq.estado !== "ABIERTO") {
-        throw new ValidationError(`El RFQ ${id} esta ${rfq.estado}; no admite invitaciones`);
+        throw new ValidationError(`El RFQ ${id} está ${rfq.estado}; no admite invitaciones`);
+      }
+      await this.assertProveedoresActivos([idProveedor], conn);
+      const yaInvitado = await this.rfqProveedorRepo.findAll(
+        normalizePageQuery({
+          page: 1,
+          pageSize: 1,
+          filters: [
+            { prop: "idRfq", operator: "eq", value: id },
+            { prop: "idProveedor", operator: "eq", value: idProveedor },
+          ],
+        }),
+        conn,
+      );
+      if (yaInvitado.data.length > 0) {
+        throw new BusinessRuleError("Ese proveedor ya fue invitado a este RFQ.");
       }
       const dto = validateAgainstDescriptor(
         COM_DESCRIPTORS.rfqProveedor,
@@ -224,7 +304,7 @@ export class RfqService extends TransactionalService {
       if (rfq === null) throw new NotFoundError("COM_RFQ_CABECERA", id);
       if (rfq.estado !== "ABIERTO") {
         throw new BusinessRuleError(
-          `No se puede eliminar: el RFQ esta ${rfq.estado.toLowerCase()}.`,
+          `No se puede eliminar: el RFQ está ${rfq.estado.toLowerCase()}.`,
         );
       }
       const cotizaciones = await repositoryFactory()

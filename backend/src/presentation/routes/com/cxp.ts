@@ -19,7 +19,7 @@ const CXP = authGuard([Permisos.CATALOGO_ADMIN]);
 
 function idParam(req: FastifyRequest): number {
   const n = Number.parseInt((req.params as Record<string, string>)["id"] ?? "", 10);
-  if (!Number.isInteger(n) || n <= 0) throw new ValidationError("Parametro 'id' invalido");
+  if (!Number.isInteger(n) || n <= 0) throw new ValidationError("Parámetro 'id' inválido");
   return n;
 }
 

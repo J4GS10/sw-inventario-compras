@@ -3,7 +3,7 @@
  *
  * Nivel 1: modulos que existen en la base de datos (SCRIPT_DDL.sql), en el
  *          orden canonico del esquema.
- * Nivel 2: solo el modulo disponible ("Gestion de Compras") despliega sus
+ * Nivel 2: solo el modulo disponible ("Gestión de Compras") despliega sus
  *          secciones (acordeon colapsable). Cada seccion y cada pantalla llevan
  *          su propio icono representativo. El orden va de lo mas usado a lo menos.
  * skills/patron-diseno.md seccion 5.
@@ -76,7 +76,7 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
     openByDefault: true,
     items: [
       { id: "com-doc-solicitudes", label: "Solicitudes de compra", kind: "documento", key: "solicitudes", icon: "clipboard", perm: READ_SOLICITUDES },
-      { id: "com-doc-ordenes", label: "Ordenes de compra", kind: "documento", key: "ordenesCompra", icon: "cart", perm: READ_OC },
+      { id: "com-doc-ordenes", label: "Órdenes de compra", kind: "documento", key: "ordenesCompra", icon: "cart", perm: READ_OC },
       { id: "com-doc-cotizaciones", label: "Cotizaciones", kind: "documento", key: "cotizaciones", icon: "coins", perm: READ_COTIZACIONES },
       { id: "com-doc-rfq", label: "RFQ / Invitaciones", kind: "documento", key: "rfq", icon: "send", perm: READ_RFQ },
     ],
@@ -99,7 +99,7 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
     ],
   },
   {
-    label: "Analisis",
+    label: "Análisis",
     icon: "chart",
     items: [
       { id: "com-an-comparativo", label: "Comparativo de cotizaciones", kind: "comparativo", icon: "award", perm: ANALISIS },
@@ -117,20 +117,20 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
     label: "Cuentas por pagar",
     icon: "wallet",
     items: [
-      { id: "com-cxp-liquidacion", label: "Liquidacion de facturas", kind: "liquidacion", icon: "wallet", perm: [Permisos.CATALOGO_ADMIN] },
+      { id: "com-cxp-liquidacion", label: "Liquidación de facturas", kind: "liquidacion", icon: "wallet", perm: [Permisos.CATALOGO_ADMIN] },
     ],
   },
   {
-    label: "Catalogos",
+    label: "Catálogos",
     icon: "list",
     items: [
       { id: "com-cat-proveedores", label: "Proveedores", kind: "catalogo", key: "proveedores", icon: "truck", perm: CAT_VER },
       { id: "com-cat-acuerdos", label: "Acuerdos marco", kind: "catalogo", key: "acuerdos", icon: "shield", perm: CAT_VER },
-      { id: "com-cat-articulos", label: "Articulos", kind: "catalogo", key: "articulos", icon: "package", perm: CAT_VER },
-      { id: "com-cat-articulo-proveedor", label: "Articulo-Proveedor", kind: "catalogo", key: "articuloProveedor", icon: "tag", perm: CAT_VER },
+      { id: "com-cat-articulos", label: "Artículos", kind: "catalogo", key: "articulos", icon: "package", perm: CAT_VER },
+      { id: "com-cat-articulo-proveedor", label: "Artículo-Proveedor", kind: "catalogo", key: "articuloProveedor", icon: "tag", perm: CAT_VER },
       { id: "com-cat-condiciones", label: "Condiciones de pago", kind: "catalogo", key: "condicionesPago", icon: "wallet", perm: CAT_VER },
-      { id: "com-cat-terminos", label: "Terminos de entrega", kind: "catalogo", key: "terminosEntrega", icon: "clock", perm: CAT_VER },
-      { id: "com-cat-categorias", label: "Categorias de compra", kind: "catalogo", key: "categoriasCompra", icon: "tag", perm: CAT_VER },
+      { id: "com-cat-terminos", label: "Términos de entrega", kind: "catalogo", key: "terminosEntrega", icon: "clock", perm: CAT_VER },
+      { id: "com-cat-categorias", label: "Categorías de compra", kind: "catalogo", key: "categoriasCompra", icon: "tag", perm: CAT_VER },
       { id: "com-cat-grupos", label: "Grupos de compra", kind: "catalogo", key: "gruposCompra", icon: "layers", perm: CAT_VER },
       { id: "com-cat-centros", label: "Centros de costo", kind: "catalogo", key: "centrosCosto", icon: "building", perm: CAT_VER },
       { id: "com-cat-monedas", label: "Monedas", kind: "catalogo", key: "monedas", icon: "coins", perm: CAT_VER },
@@ -141,12 +141,12 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
 /* --- Modulos del sistema (orden del DDL) -------------------------------- */
 
 export const MODULES: readonly SystemModule[] = [
-  { id: "nomina", label: "Nomina", prefix: "NOM_", icon: "users", available: false },
+  { id: "nomina", label: "Nómina", prefix: "NOM_", icon: "users", available: false },
   { id: "seguridad", label: "Seguridad", prefix: "SEG_", icon: "shield", available: false },
   { id: "inventarios", label: "Inventarios", prefix: "INV_", icon: "package", available: false },
   {
     id: "compras",
-    label: "Gestion de Compras",
+    label: "Gestión de Compras",
     prefix: "COM_",
     icon: "cart",
     available: true,

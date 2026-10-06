@@ -21,9 +21,20 @@ export interface ResourceState<T> {
   readonly page: number;
 }
 
+export interface SortState {
+  readonly key: string;
+  readonly dir: "asc" | "desc";
+}
+
 export interface UseResource<T> extends ResourceState<T> {
   setPage(page: number): void;
   setSort(sort: string, order: "asc" | "desc"): void;
+  /** Orden activo (null = orden por defecto del servidor: lo mas reciente primero). */
+  readonly sortState: SortState | null;
+  /** Fija o limpia el orden (server-side) y vuelve a la pagina 1. */
+  setSortState(sort: SortState | null): void;
+  /** Texto del buscador global (`?q=`); vuelve a la pagina 1. */
+  setSearch(text: string): void;
   /** Filtros extra de la query string (p. ej. `{ razonSocial__like: "acme" }`). */
   setFilters(filters: Readonly<Record<string, string | number | boolean>>): void;
   reload(): void;
@@ -42,6 +53,7 @@ export function useResource<T extends Record<string, unknown>>(
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<{ sort?: string; order: "asc" | "desc" }>({ order: "asc" });
+  const [search, setSearchText] = useState("");
   const [filters, setFilters] = useState<Readonly<Record<string, string | number | boolean>>>({});
   const [tick, setTick] = useState(0);
 
@@ -51,8 +63,9 @@ export function useResource<T extends Record<string, unknown>>(
       pageSize: 20,
       ...(sort.sort !== undefined ? { sort: sort.sort, order: sort.order } : {}),
       ...(Object.keys(filters).length > 0 ? { filters } : {}),
+      ...(search !== "" ? { search } : {}),
     }),
-    [page, sort, filters],
+    [page, sort, filters, search],
   );
 
   useEffect(() => {
@@ -98,6 +111,15 @@ export function useResource<T extends Record<string, unknown>>(
     page,
     setPage,
     setSort: (s, o) => setSort({ sort: s, order: o }),
+    sortState: sort.sort !== undefined ? { key: sort.sort, dir: sort.order } : null,
+    setSortState: (s) => {
+      setSort(s === null ? { order: "asc" } : { sort: s.key, order: s.dir });
+      setPage(1);
+    },
+    setSearch: (text) => {
+      setSearchText(text.trim());
+      setPage(1);
+    },
     setFilters: (f) => {
       setFilters(f);
       setPage(1);

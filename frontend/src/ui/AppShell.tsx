@@ -9,19 +9,22 @@
  * skills/patron-diseno.md seccion 5.
  */
 
-import { useState } from "react";
+import AvisoSalud from "./AvisoSalud.js";
+import { useEffect, useState } from "react";
 import Icon from "./Icon.js";
 import { NotificacionesMenu } from "./NotificacionesMenu.js";
+import EstadoConexion from "./EstadoConexion.js";
 import { MODULES, visibleSections, type NavLeaf, type SystemModule } from "../nav.js";
 import { applyTheme, getTheme, type ThemeMode } from "./theme.js";
 import { useAuth } from "../core/auth/AuthContext.js";
 import { useEmpresaConfig } from "../core/useEmpresaConfig.js";
 import { Button } from "./primitives.js";
+import Delegaciones from "../modules/compras/Delegaciones.js";
 
 const ROL_LABEL: Record<string, string> = {
   SOLICITANTE: "Solicitante",
   JEFE_INMEDIATO: "Jefe inmediato",
-  GERENTE_AREA: "Gerente de area",
+  GERENTE_AREA: "Gerente de área",
   COMPRADOR: "Depto. de Compras",
   GERENTE_FINANCIERO: "Gerente financiero",
   BODEGA: "Bodega",
@@ -41,14 +44,30 @@ export function AppShell(props: {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [delegando, setDelegando] = useState(false);
   const [openModule, setOpenModule] = useState<string>("compras");
+  // Acordeon: una sola seccion abierta a la vez (la de la pantalla activa; si no hay, la marcada por omision).
   const [openSections, setOpenSections] = useState<Set<string>>(() => {
     const s = new Set<string>();
     for (const m of MODULES)
       for (const sec of m.sections ?? [])
-        if (sec.openByDefault) s.add(`${m.id}:${sec.label}`);
+        if (sec.items.some((it) => it.id === props.activeId)) s.add(`${m.id}:${sec.label}`);
+    if (s.size === 0)
+      for (const m of MODULES)
+        for (const sec of m.sections ?? [])
+          if (sec.openByDefault && s.size === 0) s.add(`${m.id}:${sec.label}`);
     return s;
   });
+  const [proximos, setProximos] = useState(false);
+  // Al navegar (menu, atajo, enlace de una tarjeta) se abre la seccion de la pantalla activa y se pliegan las demas.
+  useEffect(() => {
+    for (const m of MODULES)
+      for (const sec of m.sections ?? [])
+        if (sec.items.some((it) => it.id === props.activeId)) {
+          setOpenSections((prev) => (prev.has(`${m.id}:${sec.label}`) ? prev : new Set([`${m.id}:${sec.label}`])));
+          return;
+        }
+  }, [props.activeId]);
   const [theme, setTheme] = useState<ThemeMode>(getTheme());
 
   const width = collapsed ? 76 : 268;
@@ -70,16 +89,14 @@ export function AppShell(props: {
   }
 
   function toggleSection(key: string): void {
-    setOpenSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setOpenSections((prev) => (prev.has(key) ? new Set<string>() : new Set<string>([key])));
   }
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
+      <a href="#contenido" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("contenido")?.focus(); }}>
+        Saltar al contenido
+      </a>
       {/* Overlay movil */}
       {mobileOpen && (
         <div
@@ -110,7 +127,7 @@ export function AppShell(props: {
             <div className="leading-tight">
               <div className="font-bold text-white text-[0.95rem]">{empresa.nombre}</div>
               <div className="text-[0.68rem]" style={{ color: "var(--color-navy-ink-soft)" }}>
-                Gestion de Compras
+                Gestión de Compras
               </div>
             </div>
           )}
@@ -119,7 +136,7 @@ export function AppShell(props: {
             className="ml-auto md:hidden"
             style={{ color: "var(--color-navy-ink-soft)" }}
             onClick={() => setMobileOpen(false)}
-            aria-label="Cerrar menu"
+            aria-label="Cerrar menú"
           >
             <Icon name="x" size={18} />
           </button>
@@ -128,11 +145,11 @@ export function AppShell(props: {
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
           {!collapsed && (
             <div className="px-2 pb-1.5 text-[0.62rem] font-semibold uppercase tracking-wider" style={{ color: "var(--color-navy-ink-faint)" }}>
-              Modulos del sistema
+              Módulos del sistema
             </div>
           )}
 
-          {MODULES.map((mod) => {
+          {MODULES.filter((m) => m.available).map((mod) => {
             const modOpen = openModule === mod.id && !collapsed;
             return (
               <div key={mod.id} className="mb-0.5">
@@ -161,7 +178,7 @@ export function AppShell(props: {
                           className="text-[0.58rem] font-medium"
                           style={{ color: "var(--color-navy-ink-faint)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, padding: "1px 7px" }}
                         >
-                          Proximo
+                          Próximo
                         </span>
                       )}
                     </>
@@ -218,6 +235,28 @@ export function AppShell(props: {
               </div>
             );
           })}
+          {/* Modulos aun no disponibles: plegados en un solo renglon (no compiten con lo que si se usa). */}
+          {!collapsed && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setProximos((v) => !v)}
+                aria-expanded={proximos}
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[0.62rem] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--color-navy-ink-faint)" }}
+              >
+                <span className="flex-1">Próximamente</span>
+                <Icon name={proximos ? "chevron-down" : "chevron-right"} size={12} />
+              </button>
+              {proximos &&
+                MODULES.filter((m) => !m.available && m.id !== "cxp").map((m) => (
+                  <div key={m.id} className="flex items-center gap-2.5 px-2.5 py-1.5 text-[0.8rem]" style={{ color: "var(--color-navy-ink-faint)" }}>
+                    <Icon name={m.icon} size={15} />
+                    {m.label}
+                  </div>
+                ))}
+            </div>
+          )}
         </nav>
 
         <button
@@ -243,7 +282,7 @@ export function AppShell(props: {
             className="md:hidden"
             icon="menu"
             onClick={() => setMobileOpen(true)}
-            aria-label="Abrir menu"
+            aria-label="Abrir menú"
           />
 
           <div className="flex items-center gap-2">
@@ -285,6 +324,7 @@ export function AppShell(props: {
             onClick={cycleTheme}
             title={`Tema: ${theme}`}
           />
+          <EstadoConexion />
           <NotificacionesMenu onNavigate={props.onNavigateById} />
 
           <div className="relative">
@@ -333,7 +373,27 @@ export function AppShell(props: {
                       @{sesion?.username} · {(sesion?.roles ?? []).map((r) => ROL_LABEL[r] ?? r).join(", ") || "sin rol"}
                     </div>
                   </div>
+                  {(sesion?.delegadoDe?.length ?? 0) > 0 && (
+                    <div className="px-2 pb-1 text-[0.7rem]" style={{ color: "var(--color-warning)" }}>
+                      Apruebas por delegación de {sesion?.delegadoDe?.join(", ")}
+                    </div>
+                  )}
                   <div className="my-1" style={{ borderTop: "1px solid var(--color-line)" }} />
+                  {hasAnyPerm(["COMPRAS_SOLICITUD_APROBAR_JEFE", "COMPRAS_SOLICITUD_APROBAR_GERENTE"]) && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setUserMenu(false);
+                        setDelegando(true);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[0.82rem]"
+                      style={{ color: "var(--color-ink)" }}
+                    >
+                      <Icon name="users" size={15} />
+                      Delegar mis aprobaciones
+                    </button>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -345,13 +405,14 @@ export function AppShell(props: {
                     style={{ color: "var(--color-danger)" }}
                   >
                     <Icon name="lock" size={15} />
-                    Cerrar sesion
+                    Cerrar sesión
                   </button>
                 </div>
               </>
             )}
           </div>
         </header>
+        <AvisoSalud />
 
         {/* UNICO scroller. `min-w-0` (igual que `min-h-0` para el eje vertical):
             un hijo flex con `flex-1` por defecto tiene min-width:auto, es
@@ -360,9 +421,10 @@ export function AppShell(props: {
             Comparativo con 3 botones) empuja <main> mas alla del viewport en
             vez de envolver — como `html{overflow-x:hidden}` no da scroll,
             el contenido que se sale queda inalcanzable. */}
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+        <main id="contenido" tabIndex={-1} className="min-h-0 min-w-0 flex-1 overflow-y-auto outline-none">
           <div className="mx-auto w-full max-w-[1280px] p-3 sm:p-4 md:p-6">{props.children}</div>
         </main>
+        <Delegaciones open={delegando} onClose={() => setDelegando(false)} />
       </div>
     </div>
   );

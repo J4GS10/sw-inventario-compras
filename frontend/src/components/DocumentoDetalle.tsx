@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Modal } from "../ui/Modal.js";
+import { Drawer } from "../ui/Drawer.js";
 import { Button, EstadoChip } from "../ui/primitives.js";
 import { useToast } from "../ui/Toast.js";
 import { messageOf } from "../core/errors.js";
@@ -41,6 +41,10 @@ export function DocumentoDetalle(props: {
   extraAcciones?: React.ReactNode;
   /** Seccion adicional bajo las lineas (p. ej. historial de aprobacion). */
   extraContent?: React.ReactNode;
+  /** Navegacion entre los documentos de la lista (flechas ↑ / ↓). */
+  onPrev?: (() => void) | undefined;
+  onNext?: (() => void) | undefined;
+  posicion?: string | undefined;
 }): React.ReactElement {
   const toast = useToast();
   const [data, setData] = useState<{ header: Row; details: Row[] } | null>(null);
@@ -71,11 +75,13 @@ export function DocumentoDetalle(props: {
   const h = data?.header ?? {};
 
   return (
-    <Modal
+    <Drawer
       open={props.open}
       title={props.titulo}
       onClose={props.onClose}
-      width={760}
+      onPrev={props.onPrev}
+      onNext={props.onNext}
+      posicion={props.posicion}
       footer={
         <>
           {props.extraAcciones}
@@ -153,7 +159,7 @@ export function DocumentoDetalle(props: {
                   {data.details.length === 0 ? (
                     <tr>
                       <td colSpan={props.columnasLinea.length} style={{ color: "var(--color-ink-faint)" }}>
-                        Sin lineas.
+                        Sin líneas.
                       </td>
                     </tr>
                   ) : (
@@ -181,6 +187,6 @@ export function DocumentoDetalle(props: {
           )}
         </div>
       )}
-    </Modal>
+    </Drawer>
   );
 }

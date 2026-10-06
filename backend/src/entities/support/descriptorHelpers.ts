@@ -8,7 +8,9 @@ import type {
   ColumnDescriptor,
   ColumnType,
   EntityDescriptor,
+  SearchDescriptor,
 } from "./EntityDescriptor.js";
+import { DDL_LIMITES } from "./ddlLimits.generated.js";
 
 interface ColOpts {
   readonly insertable?: boolean;
@@ -94,10 +96,35 @@ interface BuildOpts {
   readonly business: readonly ColumnDescriptor[];
   readonly withVersion?: boolean;
   readonly audit?: AuditMode;
+  /** Orden cuando el cliente no pide uno. Solo aplica si `recientesPrimero === false`. */
   readonly defaultSort: string;
+  /**
+   * `true` (por defecto): sin orden explicito se lista lo MAS RECIENTE primero
+   * (`pk desc`). `false` para lineas de detalle, que conservan `defaultSort asc`.
+   */
+  readonly recientesPrimero?: boolean;
   readonly filterable: readonly string[];
   readonly sortable: readonly string[];
   readonly detail?: EntityDescriptor["detail"];
+  readonly search?: SearchDescriptor;
+}
+
+/** Aplica a cada columna los limites del DDL (longitud, precision, CHECK). */
+function conLimitesDdl(table: string, columns: readonly ColumnDescriptor[]): ColumnDescriptor[] {
+  const lim = DDL_LIMITES[table];
+  if (lim === undefined) return [...columns];
+  return columns.map((c) => {
+    const l = lim[c.db];
+    if (l === undefined) return c;
+    return {
+      ...c,
+      ...(l.l !== undefined ? { maxLength: l.l } : {}),
+      ...(l.p !== undefined ? { precision: l.p, scale: l.s ?? 0 } : {}),
+      ...(l.min !== undefined ? { min: l.min } : {}),
+      ...(l.minExcl === true ? { minExclusive: true } : {}),
+      ...(l.max !== undefined ? { max: l.max } : {}),
+    };
+  });
 }
 
 /** Ensambla el EntityDescriptor final agregando columnas transversales. */
@@ -112,13 +139,15 @@ export function buildDescriptor(o: BuildOpts): EntityDescriptor {
   }
   columns.push(...SOFT_DELETE_COLUMNS);
 
+  const recientes = o.recientesPrimero ?? true;
   const descriptor: EntityDescriptor = {
     key: o.key,
     table: o.table,
     pk: o.pk,
-    columns,
+    columns: conLimitesDdl(o.table, columns),
     softDelete: { flag: "ELIMINADO", date: "FECHA_ELIMINACION", user: "ELIMINADO_POR" },
-    defaultSort: o.defaultSort,
+    defaultSort: recientes ? camelPk(o.pk) : o.defaultSort,
+    defaultOrder: recientes ? "desc" : "asc",
     filterable: o.filterable,
     sortable: o.sortable,
   };
@@ -137,6 +166,7 @@ export function buildDescriptor(o: BuildOpts): EntityDescriptor {
     withExtras.audit = { createdBy: "CREADO_POR", createdAt: "FECHA_CREACION" };
   }
   if (o.detail !== undefined) withExtras.detail = o.detail;
+  if (o.search !== undefined) withExtras.search = o.search;
   return descriptor;
 }
 

@@ -36,7 +36,7 @@ export function TimeBars(props: {
   if (max <= 0 || props.data.length === 0) {
     return (
       <p className="text-[0.82rem]" style={{ color: "var(--color-ink-faint)" }}>
-        {props.emptyText ?? "Aun no hay datos para este periodo."}
+        {props.emptyText ?? "Aún no hay datos para este periodo."}
       </p>
     );
   }

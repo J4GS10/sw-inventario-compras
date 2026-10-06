@@ -57,7 +57,7 @@ export class UnauthorizedError extends AppError {
 export class ForbiddenError extends AppError {
   public readonly code = "FORBIDDEN";
   public readonly httpStatus = 403;
-  constructor(message = "No tiene permisos para esta accion") {
+  constructor(message = "No tiene permisos para esta acción") {
     super(message);
   }
 }
@@ -73,8 +73,37 @@ export class LockedError extends AppError {
 export class NetworkError extends AppError {
   public readonly code = "NETWORK";
   public readonly httpStatus = 0;
-  constructor(message = "No se pudo contactar el servidor") {
+  // El mensaje del navegador ("Failed to fetch", "Load failed") no le dice nada al
+  // usuario: siempre se muestra uno en lenguaje claro.
+  constructor(_causa?: string) {
+    super("No se pudo contactar el servidor. Revisa tu conexión e inténtalo de nuevo.");
+  }
+}
+
+/** El servidor (o su base de datos) no esta disponible ahora mismo: se puede reintentar. */
+export class UnavailableError extends AppError {
+  public readonly code = "UNAVAILABLE";
+  public readonly httpStatus = 503;
+  constructor(message = "El servicio no está disponible en este momento. Inténtalo de nuevo en unos segundos.") {
     super(message);
+  }
+}
+
+/** Demasiadas peticiones/intentos. */
+export class RateLimitedError extends AppError {
+  public readonly code = "RATE_LIMITED";
+  public readonly httpStatus = 429;
+  constructor(message = "Demasiados intentos. Espera unos minutos antes de reintentar.") {
+    super(message);
+  }
+}
+
+/** La peticion tardo demasiado y se cancelo. */
+export class TimeoutError extends AppError {
+  public readonly code = "TIMEOUT";
+  public readonly httpStatus = 0;
+  constructor() {
+    super("El servidor tardó demasiado en responder. Inténtalo de nuevo.");
   }
 }
 

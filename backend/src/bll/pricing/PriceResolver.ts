@@ -34,8 +34,8 @@ export class PriceResolver {
       if (result !== null) return result;
     }
     throw new BusinessRuleError(
-      `No se pudo determinar el precio para el articulo ${query.idArticulo ?? "(libre)"} ` +
-        `del proveedor ${query.idProveedor}. Registre una cotizacion adjudicada, ` +
+      `No se pudo determinar el precio para el artículo ${query.idArticulo ?? "(libre)"} ` +
+        `del proveedor ${query.idProveedor}. Registre una cotización adjudicada, ` +
         `un acuerdo marco o una compra previa.`,
     );
   }

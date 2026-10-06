@@ -42,8 +42,11 @@ export type IconName =
   | "tag"
   | "layers"
   | "more"
+  | "sliders"
   | "help"
   | "download"
+  | "copy"
+  | "zap"
   | "star";
 
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -177,6 +180,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
   dot: <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />,
   send: <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />,
   undo: <path d="M9 14 4 9l5-5M4 9h11a6 6 0 0 1 0 12h-3" />,
+  copy: (<><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></>),
+  zap: <path d="M13 2 3 14h9l-1 8 10-12h-9z" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -195,7 +200,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="m3 12 9 5 9-5M3 17l9 5 9-5" />
     </>
   ),
-  // Kebab vertical (⋮) — convencion estandar de "mas opciones" por fila
+  // Kebab vertical (⋮) — convencion estandar de "más opciones" por fila
   // (Android/Material/Gmail), distinto del "..." horizontal de truncado de
   // texto para que no se confundan a simple vista.
   more: (
@@ -203,6 +208,15 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none" />
       <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
       <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // Controles deslizantes: "gestionar / acciones de esta fila" — se distingue de un
+  // simple menu de puntos y comunica que hay operaciones disponibles.
+  sliders: (
+    <>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
     </>
   ),
   help: (

@@ -9,7 +9,7 @@ const LABEL: Record<string, string> = {
   // Solicitud de compra
   PENDIENTE_JEFE: "Pendiente del jefe",
   PENDIENTE_GERENTE: "Pendiente del gerente",
-  EN_COTIZACION: "En cotizacion",
+  EN_COTIZACION: "En cotización",
   ORDEN_GENERADA: "Orden generada",
   RECHAZADA: "Rechazada",
   // RFQ
@@ -19,7 +19,7 @@ const LABEL: Record<string, string> = {
   // Orden de compra
   EMITIDA: "Emitida",
   ENVIADA: "Enviada al proveedor",
-  EN_TRANSITO: "En transito",
+  EN_TRANSITO: "En tránsito",
   RECIBIDA_PARCIAL: "Recibida parcial",
   RECIBIDA_COMPLETA: "Recibida completa",
   CANCELADA: "Cancelada",
@@ -34,7 +34,7 @@ const LABEL: Record<string, string> = {
   // Genericos catalogos
   A: "Activo",
   I: "Inactivo",
-  S: "Si",
+  S: "Sí",
   N: "No",
 };
 
@@ -113,7 +113,7 @@ export function prioridadTono(value: number | string | null | undefined): Estado
 
 /* ---- Calificacion de proveedor (A+/A/B/C/Nuevo) -> estrellas (1-5) -----
  * Traduce la escala cualitativa existente (catalogosEstaticos.CALIFICACION_
- * PROVEEDOR) a un numero de estrellas para el "vistazo rapido" en tabla —
+ * PROVEEDOR) a un numero de estrellas para el "vistazo rápido" en tabla —
  * no reemplaza la escala, solo la muestra visualmente. */
 const CALIFICACION_ESTRELLAS: Record<string, number> = {
   "A+": 5,
@@ -126,4 +126,32 @@ const CALIFICACION_ESTRELLAS: Record<string, number> = {
 export function calificacionProveedorEstrellas(codigo: string | null | undefined): number {
   if (codigo === null || codigo === undefined || codigo === "") return 0;
   return CALIFICACION_ESTRELLAS[codigo] ?? 0;
+}
+
+/** Icono por estado: el significado se entiende sin leer (y sin depender solo del color). */
+const ICONO_ESTADO: Record<string, string> = {
+  PENDIENTE_JEFE: "clock",
+  PENDIENTE_GERENTE: "clock",
+  EN_COTIZACION: "tag",
+  ORDEN_GENERADA: "cart",
+  RECHAZADA: "x",
+  ABIERTO: "send",
+  CERRADO: "check",
+  CANCELADO: "x",
+  EMITIDA: "clipboard",
+  ENVIADA: "send",
+  EN_TRANSITO: "truck",
+  RECIBIDA_PARCIAL: "package",
+  RECIBIDA_COMPLETA: "check",
+  CANCELADA: "x",
+  RECIBIDO: "package",
+  ALIMENTADO_CXP: "wallet",
+  PENDIENTE: "clock",
+  PAGADA_PARCIAL: "coins",
+  PAGADA: "check",
+  ANULADA: "x",
+};
+
+export function estadoIcono(code: string | null | undefined): string | undefined {
+  return code === null || code === undefined ? undefined : ICONO_ESTADO[String(code).toUpperCase()];
 }

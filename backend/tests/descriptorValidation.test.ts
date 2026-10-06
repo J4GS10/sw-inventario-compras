@@ -7,7 +7,7 @@ import {
 } from "../src/entities/com/descriptors.js";
 
 describe("validateAgainstDescriptor", () => {
-  it("acepta un cuerpo valido y solo devuelve columnas escribibles", () => {
+  it("acepta un cuerpo válido y solo devuelve columnas escribibles", () => {
     const clean = validateAgainstDescriptor(
       COM_MONEDA,
       { codigo: "GTQ", nombre: "Quetzal", simbolo: "Q", activa: true, idMoneda: 999 },

@@ -8,7 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --parallel -r dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:apps": "pnpm --parallel -r dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "db:deploy": "pnpm --filter backend exec tsx scripts/deploy.ts",
@@ -18,6 +19,8 @@
     "gen:entities": "pnpm --filter backend gen:entities",
     "graphify:update": "graphify update .",
     "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/minio.ps1",
+    "oficial": "node scripts/oficial.mjs",
+    "qa:oficial": "node scripts/qa-oficial.mjs",
     "qa:roles": "node scripts/qa-roles-smoke.mjs"
   },
   "devDependencies": {
@@ -31,5 +34,10 @@
   },
   "allowScripts": {
     "canvas@3.2.3": true
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": ">=4.1.5"
+    }
   }
 }

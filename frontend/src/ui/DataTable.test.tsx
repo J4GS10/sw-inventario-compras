@@ -54,7 +54,7 @@ const BASE_COLUMNS: readonly Column<Row>[] = [
   { key: "estado", header: "Estado", type: "estado", value: (r) => r.estado },
 ];
 
-describe("DataTable — render basico", () => {
+describe("DataTable — render básico", () => {
   it("muestra columnas y filas con formato por tipo", () => {
     render(<DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} />);
     expect(screen.getByRole("columnheader", { name: "Nombre" })).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("DataTable — render basico", () => {
     expect(screen.getByText("Beta").closest("td")).toHaveAttribute("title", "Beta");
   });
 
-  it("estado vacio con el titulo dado cuando no hay filas", () => {
+  it("estado vacío con el título dado cuando no hay filas", () => {
     render(<DataTable columns={BASE_COLUMNS} rows={[]} rowKey={rowKey} emptyTitle="Sin proveedores" />);
     expect(screen.getByText("Sin proveedores")).toBeInTheDocument();
   });
@@ -121,8 +121,8 @@ describe("DataTable — selección y acciones masivas", () => {
   });
 });
 
-describe("DataTable — menu de acciones por fila", () => {
-  it("abre el menu, dispara la accion, y oculta las acciones marcadas hidden", async () => {
+describe("DataTable — menú de acciones por fila", () => {
+  it("abre el menú, dispara la acción, y oculta las acciones marcadas hidden", async () => {
     const user = userEvent.setup();
     const onEditar = vi.fn();
     const actions: readonly RowAction<Row>[] = [
@@ -131,7 +131,7 @@ describe("DataTable — menu de acciones por fila", () => {
     ];
     render(<DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} actions={actions} />);
 
-    const menuButtons = screen.getAllByRole("button", { name: "Acciones de la fila" });
+    const menuButtons = screen.getAllByRole("button", { name: "Más opciones" });
     // Fila 0 = Beta (APROBADA): "Adjudicar" no debe aparecer.
     await user.click(menuButtons[0]!);
     expect(screen.getByRole("menuitem", { name: "Editar" })).toBeInTheDocument();
@@ -142,8 +142,8 @@ describe("DataTable — menu de acciones por fila", () => {
   });
 });
 
-describe("DataTable — paginacion", () => {
-  it("Anterior deshabilitado en la primera pagina; Siguiente llama onPage", async () => {
+describe("DataTable — paginación", () => {
+  it("Anterior deshabilitado en la primera página; Siguiente llama onPage", async () => {
     const user = userEvent.setup();
     const onPage = vi.fn();
     render(
@@ -156,15 +156,15 @@ describe("DataTable — paginacion", () => {
 });
 
 describe("DataTable — columna de relleno sin grow (fix 2026-09-10)", () => {
-  it("agrega una celda extra invisible cuando ninguna columna tiene grow", () => {
+  it("sin grow explícito, la primera columna de texto absorbe el espacio (sin celdas vacías de relleno)", () => {
     const sinGrow: readonly Column<Row>[] = [
       { key: "nombre", header: "Nombre", type: "text", value: (r) => r.nombre },
       { key: "estado", header: "Estado", type: "estado", value: (r) => r.estado },
     ];
     render(<DataTable columns={sinGrow} rows={ROWS} rowKey={rowKey} />);
     const firstDataRow = screen.getAllByRole("row")[1]!;
-    // 2 columnas de datos + 1 <td> de relleno (aria-hidden, fuera del arbol de a11y) = 3.
-    expect(firstDataRow.querySelectorAll("td")).toHaveLength(3);
+    // Solo las 2 columnas de datos: el espacio sobrante lo absorbe "Nombre", no un <td> vacio.
+    expect(firstDataRow.querySelectorAll("td")).toHaveLength(2);
   });
 
   it("no agrega relleno cuando una columna ya tiene grow", () => {
@@ -194,16 +194,17 @@ describe("DataTable — responsive", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.queryByText("detalle b")).not.toBeInTheDocument();
 
-    const disclosure = screen.getAllByRole("button", { name: "Mostrar mas detalles" })[0]!;
+    const disclosure = screen.getAllByRole("button", { name: "Mostrar más detalles" })[0]!;
     await user.click(disclosure);
     expect(screen.getByText("detalle b")).toBeInTheDocument();
   });
 
-  it("muestra las columnas secondary inline cuando el contenedor es suficientemente ancho", () => {
+  it("las columnas secondary nunca van en la tabla, ni con el contenedor ancho (viven en el detalle de la fila)", () => {
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
     render(<DataTable columns={conSecundaria} rows={ROWS} rowKey={rowKey} />);
-    FakeResizeObserver.current?.fire(900);
-    expect(screen.getByRole("columnheader", { name: "Extra" })).toBeInTheDocument();
+    FakeResizeObserver.current?.fire(1000);
+    expect(screen.queryByRole("columnheader", { name: "Extra" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Mostrar más detalles" }).length).toBeGreaterThan(0);
   });
 
   it("por debajo de 560px cambia a vista tarjeta (sin tabla)", () => {
@@ -212,5 +213,93 @@ describe("DataTable — responsive", () => {
     FakeResizeObserver.current?.fire(400);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+});
+
+describe("DataTable — orden en servidor (onSort)", () => {
+  it("cicla asc -> desc -> sin orden y NO reordena la pagina en el cliente", async () => {
+    const user = userEvent.setup();
+    const onSort = vi.fn();
+    const { rerender } = render(
+      <DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} sort={null} onSort={onSort} />,
+    );
+    const nombre = screen.getByRole("columnheader", { name: "Nombre" });
+
+    await user.click(nombre);
+    expect(onSort).toHaveBeenLastCalledWith({ key: "nombre", dir: "asc" });
+    // El servidor decide el orden: las filas siguen tal como llegaron (Beta, Alfa).
+    let cells = screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0]?.textContent);
+    expect(cells).toEqual(["Beta", "Alfa"]);
+
+    rerender(<DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} sort={{ key: "nombre", dir: "asc" }} onSort={onSort} />);
+    expect(screen.getByRole("columnheader", { name: "Nombre" })).toHaveAttribute("aria-sort", "ascending");
+    await user.click(screen.getByRole("columnheader", { name: "Nombre" }));
+    expect(onSort).toHaveBeenLastCalledWith({ key: "nombre", dir: "desc" });
+
+    rerender(<DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} sort={{ key: "nombre", dir: "desc" }} onSort={onSort} />);
+    expect(screen.getByRole("columnheader", { name: "Nombre" })).toHaveAttribute("aria-sort", "descending");
+    await user.click(screen.getByRole("columnheader", { name: "Nombre" }));
+    expect(onSort).toHaveBeenLastCalledWith(null); // vuelve al orden por defecto: lo mas reciente primero
+    cells = screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0]?.textContent);
+    expect(cells).toEqual(["Beta", "Alfa"]);
+  });
+});
+
+describe("DataTable — buscador", () => {
+  it("notifica lo tecleado, limpia con el botón y con Escape", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} search={{ value: "", onChange, placeholder: "Buscar algo" }} />,
+    );
+    const box = screen.getByRole("searchbox");
+    await user.type(box, "a");
+    expect(onChange).toHaveBeenLastCalledWith("a");
+    expect(screen.queryByRole("button", { name: "Limpiar búsqueda" })).not.toBeInTheDocument();
+
+    rerender(<DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} search={{ value: "alfa", onChange }} />);
+    await user.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+    expect(onChange).toHaveBeenLastCalledWith("");
+    await user.type(screen.getByRole("searchbox"), "{Escape}");
+    expect(onChange).toHaveBeenLastCalledWith("");
+  });
+
+  it("sin resultados: dice que se busco y ofrece limpiar (no el vacío genérico)", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <DataTable columns={BASE_COLUMNS} rows={[]} rowKey={rowKey} emptyTitle="Aún no hay nada" search={{ value: "zzz", onChange }} />,
+    );
+    expect(screen.getByText("Sin resultados para «zzz»")).toBeInTheDocument();
+    expect(screen.queryByText("Aún no hay nada")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ver todos los registros" }));
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("sin búsqueda activa y sin filas se muestra el vacío normal", () => {
+    render(<DataTable columns={BASE_COLUMNS} rows={[]} rowKey={rowKey} emptyTitle="Aún no hay nada" search={{ value: "", onChange: vi.fn() }} />);
+    expect(screen.getByText("Aún no hay nada")).toBeInTheDocument();
+  });
+
+  it("el pie cuenta 'resultados' cuando hay búsqueda", () => {
+    render(
+      <DataTable columns={BASE_COLUMNS} rows={ROWS} rowKey={rowKey} page={1} totalPages={1} total={2} onPage={vi.fn()} search={{ value: "a", onChange: vi.fn() }} />,
+    );
+    expect(screen.getByText(/2 resultados/)).toBeInTheDocument();
+  });
+});
+
+describe("DataTable — fechas", () => {
+  const FILAS = [{ id: 1, nombre: "x", monto: 1, estado: "A", extra: "" }];
+  it("un DATE (medianoche UTC) no se corre de dia; un instante se muestra en hora local", () => {
+    const cols: readonly Column<Row>[] = [
+      { key: "d", header: "Día", type: "date", value: () => "2026-10-19T00:00:00.000Z" },
+      { key: "t", header: "Instante", type: "datetime", value: () => "2026-10-05T22:26:48.000Z" },
+    ];
+    render(<DataTable columns={cols} rows={FILAS} rowKey={rowKey} />);
+    expect(screen.getByText("2026-10-19")).toBeInTheDocument();
+    const local = new Date("2026-10-05T22:26:48.000Z");
+    const hh = local.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+    expect(screen.getByText(`${local.toLocaleDateString("en-CA")} ${hh}`)).toBeInTheDocument();
   });
 });

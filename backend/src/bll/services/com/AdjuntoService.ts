@@ -77,6 +77,33 @@ const TABLA: Record<TipoDocumentoAdjunto, string> = {
   devolucion: "COM_DEVOLUCION_PROVEEDOR",
 };
 
+/** Firmas (magic bytes) de los tipos aceptados: el MIME declarado por el cliente no basta. */
+const FIRMAS: Record<string, (b: Buffer) => boolean> = {
+  "application/pdf": (b) => b.subarray(0, 1024).toString("latin1").includes("%PDF-"),
+  "image/png": (b) => b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  "image/jpeg": (b) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+};
+const EXTENSIONES: Record<string, readonly string[]> = {
+  "application/pdf": ["pdf"],
+  "image/png": ["png"],
+  "image/jpeg": ["jpg", "jpeg"],
+};
+/** Extensiones peligrosas: aunque el MIME sea valido, un nombre "factura.pdf.exe" confunde al usuario. */
+const EXT_PELIGROSAS = /\.(exe|bat|cmd|com|scr|msi|js|jse|vbs|ps1|sh|jar|html?|svg|php|dll|lnk)(\.|$)/i;
+
+/** Serializa las escrituras del manifiesto de un mismo documento (evita perder subidas simultaneas). */
+const COLAS = new Map<string, Promise<unknown>>();
+async function enCola<T>(clave: string, fn: () => Promise<T>): Promise<T> {
+  const previa = COLAS.get(clave) ?? Promise.resolve();
+  const sig = previa.catch(() => undefined).then(fn);
+  COLAS.set(clave, sig);
+  try {
+    return await sig;
+  } finally {
+    if (COLAS.get(clave) === sig) COLAS.delete(clave);
+  }
+}
+
 function saneNombre(nombre: string): string {
   const base = nombre.split(/[\\/]/).pop() ?? "archivo";
   return base.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120) || "archivo";
@@ -84,7 +111,7 @@ function saneNombre(nombre: string): string {
 
 function assertRef(ref: string): void {
   if (ref === "" || ref.includes("/") || ref.includes("\\") || ref.includes("..")) {
-    throw new ValidationError("Referencia de adjunto invalida");
+    throw new ValidationError("Referencia de adjunto inválida");
   }
 }
 
@@ -107,7 +134,7 @@ export class AdjuntoService {
     id: number,
   ): Promise<void> {
     if (!Number.isInteger(id) || id <= 0) {
-      throw new ValidationError("Id de documento invalido");
+      throw new ValidationError("Id de documento inválido");
     }
     const row = await REPOS[tipo]().findById(id);
     if (row === null || row === undefined) {
@@ -165,13 +192,21 @@ export class AdjuntoService {
       );
     }
     if (archivo.buffer.length === 0) {
-      throw new ValidationError("El archivo esta vacio");
+      throw new ValidationError("El archivo está vacío");
     }
     const max = maxBytes();
     if (archivo.buffer.length > max) {
       throw new ValidationError(
-        `El archivo supera el maximo permitido (${Math.round(max / 1024 / 1024)} MB)`,
+        `El archivo supera el máximo permitido (${Math.round(max / 1024 / 1024)} MB)`,
       );
+    }
+
+    if (!(FIRMAS[mime]?.(archivo.buffer) ?? false)) {
+      throw new ValidationError("El contenido del archivo no corresponde a su tipo (se esperaba un PDF, PNG o JPG real).");
+    }
+    const ext = (archivo.nombre.split(".").pop() ?? "").toLowerCase();
+    if (!(EXTENSIONES[mime] ?? []).includes(ext) || EXT_PELIGROSAS.test(archivo.nombre)) {
+      throw new ValidationError("La extensión del archivo no coincide con su tipo o no está permitida.");
     }
 
     const nombre = saneNombre(archivo.nombre);
@@ -187,9 +222,11 @@ export class AdjuntoService {
       subidoPor: ctx.userId,
       subidoEn: new Date().toISOString(),
     };
-    const m = await this.leerManifiesto(tipo, id);
-    m.items.push(meta);
-    await this.guardarManifiesto(tipo, id, m);
+    await enCola(this.claveManifiesto(tipo, id), async () => {
+      const m = await this.leerManifiesto(tipo, id);
+      m.items.push(meta);
+      await this.guardarManifiesto(tipo, id, m);
+    });
     return meta;
   }
 

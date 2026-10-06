@@ -30,7 +30,7 @@ const DEMO_PASSWORD = "compras.demo";
 const ROL_LABEL: Record<string, string> = {
   SOLICITANTE: "Solicitante",
   JEFE_INMEDIATO: "Jefe inmediato",
-  GERENTE_AREA: "Gerente de area",
+  GERENTE_AREA: "Gerente de área",
   COMPRADOR: "Depto. de Compras",
   GERENTE_FINANCIERO: "Gerente financiero",
   BODEGA: "Bodega",
@@ -50,6 +50,8 @@ export default function LoginScreen(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // El servidor de producción no publica perfiles de demostración: no se consulta (evita un 404 en cada carga).
+    if ((import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD === true) return;
     let vivo = true;
     http
       .get<UsuarioDemo[]>("/api/auth/usuarios-demo")
@@ -72,7 +74,7 @@ export default function LoginScreen(): React.ReactElement {
   async function entrar(username: string, pass: string): Promise<void> {
     const u = username.trim();
     if (u === "" || pass === "") {
-      setError("Ingrese usuario y contrasena.");
+      setError("Ingrese usuario y contraseña.");
       return;
     }
     setBusy(u);
@@ -116,7 +118,7 @@ export default function LoginScreen(): React.ReactElement {
               {empresa.nombre}
             </div>
             <div className="text-[0.75rem]" style={{ color: "var(--color-ink-faint)" }}>
-              Modulo de Gestion de Compras
+              Módulo de Gestión de Compras
             </div>
           </div>
         </div>
@@ -186,7 +188,7 @@ export default function LoginScreen(): React.ReactElement {
           style={{ color: "var(--color-ink-faint)" }}
         >
           <span className="h-px flex-1" style={{ background: "var(--color-line)" }} />
-          o con usuario y contrasena
+          o con usuario y contraseña
           <span className="h-px flex-1" style={{ background: "var(--color-line)" }} />
         </div>
 
@@ -218,14 +220,14 @@ export default function LoginScreen(): React.ReactElement {
 
           <label className="block">
             <span className="mb-1 block text-[0.72rem] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-soft)" }}>
-              Contrasena
+              Contraseña
             </span>
             <div className="relative">
               <input
                 className="field-control"
                 type={showPass ? "text" : "password"}
                 value={password}
-                placeholder="contrasena"
+                placeholder="contraseña"
                 autoComplete="current-password"
                 aria-invalid={error !== null}
                 disabled={anyBusy}
@@ -243,7 +245,7 @@ export default function LoginScreen(): React.ReactElement {
                 onClick={() => setShowPass((v) => !v)}
                 className="absolute inset-y-0 right-0 px-3 text-[0.72rem] font-semibold"
                 style={{ color: "var(--color-brand-ink)" }}
-                aria-label={showPass ? "Ocultar contrasena" : "Mostrar contrasena"}
+                aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPass ? "Ocultar" : "Mostrar"}
               </button>
@@ -271,7 +273,7 @@ export default function LoginScreen(): React.ReactElement {
         </form>
 
         <p className="mt-4 text-[0.72rem]" style={{ color: "var(--color-ink-faint)" }}>
-          Contrasena de los perfiles de demostracion:{" "}
+          Contraseña de los perfiles de demostración:{" "}
           <span style={{ fontFamily: "var(--font-mono, monospace)", color: "var(--color-ink-soft)" }}>
             {DEMO_PASSWORD}
           </span>

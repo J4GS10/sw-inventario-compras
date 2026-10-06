@@ -121,13 +121,13 @@ describe("Flujo de compras end-to-end", () => {
           idSucursal: ids.sucursal,
           idGrupoCompra: ids.grupoCompra,
           idTerminoEntrega: ids.terminoEntrega,
-          justificacion: "Reposicion de stock (test e2e)",
+          justificacion: "Reposición de stock (test e2e)",
           prioridad: 2,
         },
         detalles: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo de prueba",
+            descripcion: "Artículo de prueba",
             cantidadSolicitada: 10,
             idUnidadMedida: ids.unidadMedida,
             fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -164,7 +164,7 @@ describe("Flujo de compras end-to-end", () => {
     expect((a2.json() as { data: { estado: string } }).data.estado).toBe("EN_COTIZACION");
   });
 
-  it("registra la bitacora de aprobacion en COM_WORKFLOW_APROBACION", async () => {
+  it("registra la bitácora de aprobación en COM_WORKFLOW_APROBACION", async () => {
     const n = await scalar(
       `SELECT COUNT(*) V FROM COM_WORKFLOW_APROBACION WHERE ID_SOLICITUD = ${idSolicitud}`,
     );
@@ -186,7 +186,7 @@ describe("Flujo de compras end-to-end", () => {
     idRfq = (res.json() as { data: { header: { idRfq: number } } }).data.header.idRfq;
   });
 
-  it("registra una cotizacion y adjudica la linea", async () => {
+  it("registra una cotización y adjudica la línea", async () => {
     const cot = await app.inject({
       method: "POST",
       url: "/api/com/cotizaciones",
@@ -223,7 +223,7 @@ describe("Flujo de compras end-to-end", () => {
     expect((adj.json() as { data: { adjudicado: boolean } }).data.adjudicado).toBe(true);
   });
 
-  it("genera la orden de compra tomando el precio de la cotizacion adjudicada (Strategy)", async () => {
+  it("genera la orden de compra tomando el precio de la cotización adjudicada (Strategy)", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/ordenes-compra",
@@ -238,7 +238,7 @@ describe("Flujo de compras end-to-end", () => {
         lineas: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo de prueba",
+            descripcion: "Artículo de prueba",
             cantidad: 10,
             idUnidadMedida: ids.unidadMedida,
             idCotizacionDetalle,
@@ -288,7 +288,7 @@ describe("Flujo de compras end-to-end", () => {
     expect(rechazo.statusCode).toBe(409); // transicion no permitida
   });
 
-  it("registra la recepcion total y cierra la OC como RECIBIDA_COMPLETA", async () => {
+  it("registra la recepción total y cierra la OC como RECIBIDA_COMPLETA", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/recepciones",
@@ -313,7 +313,7 @@ describe("Flujo de compras end-to-end", () => {
     expect(oc).toBe(1);
   });
 
-  it("el Observer alimento el kardex y genero la factura de CxP", async () => {
+  it("el Observer alimentó el kardex y genero la factura de CxP", async () => {
     const kardex = await scalar(
       `SELECT COUNT(*) V FROM INV_KARDEX_MOVIMIENTO
        WHERE TIPO_DOCUMENTO_REF = 'COM_RECEPCION' AND ID_DOCUMENTO_REF = ${idRecepcion}`,
@@ -331,14 +331,14 @@ describe("Flujo de compras end-to-end", () => {
     expect(recepcionAlimentada).toBe(1);
   });
 
-  it("registra una devolucion parcial al proveedor", async () => {
+  it("registra una devolución parcial al proveedor", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/devoluciones",
       headers: H,
       payload: {
         idRecepcion,
-        motivo: "Producto danado (test)",
+        motivo: "Producto dañado (test)",
         idEmpleadoSolicita: ids.empleado,
         lineas: [{ idRecepcionDetalle, cantidadDevuelta: 2 }],
       },
@@ -349,7 +349,7 @@ describe("Flujo de compras end-to-end", () => {
     ).toBe(1);
   });
 
-  it("rechaza devolver mas de lo recibido (regla de negocio)", async () => {
+  it("rechaza devolver más de lo recibido (regla de negocio)", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/devoluciones",

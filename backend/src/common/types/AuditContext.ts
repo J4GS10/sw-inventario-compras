@@ -15,6 +15,8 @@ export interface AuditContext {
   readonly roles?: readonly string[];
   /** Identificador de correlacion del request (para logs). */
   readonly requestId?: string;
+  /** Modo "solo validar" (cabecera X-Solo-Validar): el servicio valida todo y NO escribe. */
+  readonly soloValidar?: boolean;
 }
 
 export const SYSTEM_AUDIT_CONTEXT: AuditContext = { userId: 0, permisos: ["*"] };

@@ -108,7 +108,10 @@ async function main() {
   // ==========================================================================
   section("FASE 1 — Catalogos: alta / edicion / baja real");
   // 1.1 Proveedor nuevo, con NIT unico real de negocio.
-  const nit = `NIT-E2E-${Date.now()}`;
+  // Sufijo unico por corrida: los nombres/NIT/codigos son UNIQUE y una corrida abortada dejaba
+  // filas que hacian fallar (409) todas las siguientes. NIT es VARCHAR2(20): `NIT-E2E-` + base36 cabe.
+  const SFX = Date.now().toString(36);
+  const nit = `NIT-E2E-${SFX}`;
   const provCrear = await api("POST", "/api/com/proveedores", T.comprador, {
     nit,
     razonSocial: "Suministros Industriales del Norte, S.A.",
@@ -139,7 +142,7 @@ async function main() {
 
   // 1.2 Categoria + Grupo de compra encadenados (el grupo depende de la categoria).
   const catCrear = await api("POST", "/api/com/categorias-compra", T.comprador, {
-    nombre: "Materiales de Construccion (E2E)",
+    nombre: `Materiales de Construccion (E2E ${SFX})`,
     descripcion: "Cemento, agregados y ferreteria para obra",
     estado: "A",
   });
@@ -149,7 +152,7 @@ async function main() {
   if (idCategoriaNueva) {
     const grpCrear = await api("POST", "/api/com/grupos-compra", T.comprador, {
       idCategoriaCompra: idCategoriaNueva,
-      nombre: "Cemento y Agregados (E2E)",
+      nombre: `Cemento y Agregados (E2E ${SFX})`,
       descripcion: "Cemento, arena, piedrin",
     });
     idGrupoNuevo = expectStatus("crea Grupo de compra (bajo la categoria nueva)", grpCrear, 201)?.idGrupoCompra;
@@ -157,7 +160,7 @@ async function main() {
 
   // 1.3 Condicion de pago + Termino de entrega.
   const condCrear = await api("POST", "/api/com/condiciones-pago", T.comprador, {
-    nombre: "Credito 45 dias (E2E)",
+    nombre: `Credito 45 dias (E2E ${SFX})`,
     dias: 45,
   });
   const idCondicionNueva = expectStatus("crea Condicion de pago", condCrear, 201)?.idCondicionPago;
@@ -168,7 +171,7 @@ async function main() {
   }
 
   const termCrear = await api("POST", "/api/com/terminos-entrega", T.comprador, {
-    nombre: "Entrega en bodega central (E2E)",
+    nombre: `Entrega en bodega central (E2E ${SFX})`,
     diasEstimados: 7,
   });
   const idTerminoNuevo = expectStatus("crea Termino de entrega", termCrear, 201)?.idTerminoEntrega;
@@ -189,7 +192,8 @@ async function main() {
   expectStatus("Comprador NO puede crear Moneda (403)", monedaComoComprador, 403);
 
   const monedaCrear = await api("POST", "/api/com/monedas", T.financiero, {
-    codigo: "ZZT",
+    // 3 letras mayusculas (ISO 4217) unicas por corrida
+    codigo: Array.from({ length: 3 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join(""),
     nombre: "Moneda de prueba E2E",
     simbolo: "Z$",
     activa: true,

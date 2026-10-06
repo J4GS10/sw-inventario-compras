@@ -19,17 +19,17 @@ SELECT v.c, v.n, 'COMPRAS', v.d FROM (
   SELECT 'COMPRAS_SOLICITUD_CREAR'            c, 'Crear solicitud de compra'      n, 'Ingresar solicitudes de compra'                              d FROM dual UNION ALL
   SELECT 'COMPRAS_SOLICITUD_VER',                 'Ver solicitudes',                   'Consultar solicitudes de compra'                                 FROM dual UNION ALL
   SELECT 'COMPRAS_SOLICITUD_APROBAR_JEFE',        'Aprobar (jefe inmediato)',          'Aprobar, rechazar o ajustar cantidades en PENDIENTE_JEFE'         FROM dual UNION ALL
-  SELECT 'COMPRAS_SOLICITUD_APROBAR_GERENTE',     'Aprobar (gerente de area)',         'Aprobar o rechazar en PENDIENTE_GERENTE'                          FROM dual UNION ALL
+  SELECT 'COMPRAS_SOLICITUD_APROBAR_GERENTE',     'Aprobar (gerente de área)',         'Aprobar o rechazar en PENDIENTE_GERENTE'                          FROM dual UNION ALL
   SELECT 'COMPRAS_RFQ_GESTIONAR',                 'Gestionar RFQ',                     'Crear, ver y cerrar RFQ, invitar proveedores'                    FROM dual UNION ALL
   SELECT 'COMPRAS_COTIZACION_GESTIONAR',          'Gestionar cotizaciones',            'Registrar y ver cotizaciones de proveedor'                       FROM dual UNION ALL
-  SELECT 'COMPRAS_COTIZACION_ADJUDICAR',          'Adjudicar cotizacion',              'Ver, adjudicar y registrar criterios'                            FROM dual UNION ALL
-  SELECT 'COMPRAS_OC_GESTIONAR',                  'Gestionar ordenes de compra',       'Generar OC, verla y cambiar su estado'                           FROM dual UNION ALL
-  SELECT 'COMPRAS_RECEPCION_GESTIONAR',           'Gestionar recepciones',             'Registrar y ver recepciones de mercaderia'                       FROM dual UNION ALL
+  SELECT 'COMPRAS_COTIZACION_ADJUDICAR',          'Adjudicar cotización',              'Ver, adjudicar y registrar criterios'                            FROM dual UNION ALL
+  SELECT 'COMPRAS_OC_GESTIONAR',                  'Gestionar órdenes de compra',       'Generar OC, verla y cambiar su estado'                           FROM dual UNION ALL
+  SELECT 'COMPRAS_RECEPCION_GESTIONAR',           'Gestionar recepciones',             'Registrar y ver recepciones de mercadería'                       FROM dual UNION ALL
   SELECT 'COMPRAS_DEVOLUCION_GESTIONAR',          'Gestionar devoluciones',            'Registrar y ver devoluciones a proveedor'                        FROM dual UNION ALL
-  SELECT 'COMPRAS_CATALOGO_VER',                  'Ver catalogos',                     'Consultar catalogos del modulo'                                 FROM dual UNION ALL
-  SELECT 'COMPRAS_CATALOGO_EDITAR',               'Editar catalogos operativos',       'Proveedores, acuerdos, condiciones, grupos, centros de costo'    FROM dual UNION ALL
-  SELECT 'COMPRAS_CATALOGO_ADMIN',                'Administrar monedas',               'Editar el catalogo de monedas'                                  FROM dual UNION ALL
-  SELECT 'COMPRAS_ANALISIS_VER',                  'Ver analisis',                      'Dashboard, comparativo, historial de precios y reportes'        FROM dual
+  SELECT 'COMPRAS_CATALOGO_VER',                  'Ver catálogos',                     'Consultar catálogos del módulo'                                 FROM dual UNION ALL
+  SELECT 'COMPRAS_CATALOGO_EDITAR',               'Editar catálogos operativos',       'Proveedores, acuerdos, condiciones, grupos, centros de costo'    FROM dual UNION ALL
+  SELECT 'COMPRAS_CATALOGO_ADMIN',                'Administrar monedas',               'Editar el catálogo de monedas'                                  FROM dual UNION ALL
+  SELECT 'COMPRAS_ANALISIS_VER',                  'Ver análisis',                      'Dashboard, comparativo, historial de precios y reportes'        FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM SEG_PERMISO p WHERE p.CODIGO = v.c);
 
@@ -37,13 +37,13 @@ WHERE NOT EXISTS (SELECT 1 FROM SEG_PERMISO p WHERE p.CODIGO = v.c);
 INSERT INTO SEG_ROL (CODIGO, NOMBRE, DESCRIPCION, ESTADO)
 SELECT v.c, v.n, v.d, 'A' FROM (
   SELECT 'SOLICITANTE'        c, 'Solicitante'                  n, 'Empleado que ingresa solicitudes de compra'                         d FROM dual UNION ALL
-  SELECT 'JEFE_INMEDIATO',        'Jefe inmediato',                 'Primer nivel de aprobacion; puede ajustar cantidades'                  FROM dual UNION ALL
-  SELECT 'GERENTE_AREA',          'Gerente de area',                'Segundo nivel de aprobacion'                                          FROM dual UNION ALL
-  SELECT 'COMPRADOR',             'Comprador (Depto. Compras)',     'Gestiona RFQ, cotizaciones y ordenes de compra'                       FROM dual UNION ALL
-  SELECT 'GERENTE_FINANCIERO',    'Gerente financiero',             'Selecciona la mejor cotizacion (adjudicacion)'                        FROM dual UNION ALL
+  SELECT 'JEFE_INMEDIATO',        'Jefe inmediato',                 'Primer nivel de aprobación; puede ajustar cantidades'                  FROM dual UNION ALL
+  SELECT 'GERENTE_AREA',          'Gerente de área',                'Segundo nivel de aprobación'                                          FROM dual UNION ALL
+  SELECT 'COMPRADOR',             'Comprador (Depto. Compras)',     'Gestiona RFQ, cotizaciones y órdenes de compra'                       FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO',    'Gerente financiero',             'Selecciona la mejor cotización (adjudicación)'                        FROM dual UNION ALL
   SELECT 'BODEGA',                'Bodega',                         'Registra recepciones y devoluciones a proveedor'                      FROM dual UNION ALL
   SELECT 'AUDITOR',               'Auditor',                        'Consulta de solo lectura del ciclo de compras'                        FROM dual UNION ALL
-  SELECT 'ADMIN_COMPRAS',         'Administrador de Compras',       'Acceso total al modulo de compras'                                   FROM dual
+  SELECT 'ADMIN_COMPRAS',         'Administrador de Compras',       'Acceso total al módulo de compras'                                   FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM SEG_ROL r WHERE r.CODIGO = v.c);
 
@@ -54,9 +54,9 @@ SELECT v.cod, v.nom, v.ape, DATE '2024-02-01',
        (SELECT MIN(ID_SUCURSAL) FROM NOM_SUCURSAL WHERE ELIMINADO = 'N'),
        v.tip, v.sal, 'A'
 FROM (
-  SELECT 'EMP-105' cod, 'Sofia'    nom, 'Herrera'  ape, 'OFICINA_CENTRAL' tip, 8000 sal FROM dual UNION ALL
+  SELECT 'EMP-105' cod, 'Sofía'    nom, 'Herrera'  ape, 'OFICINA_CENTRAL' tip, 8000 sal FROM dual UNION ALL
   SELECT 'EMP-106',     'Ricardo',      'Morales',      'OFICINA_CENTRAL',     14000     FROM dual UNION ALL
-  SELECT 'EMP-107',     'Patricia',     'Nunez',        'ADMINISTRATIVO',      7800      FROM dual UNION ALL
+  SELECT 'EMP-107',     'Patricia',     'Núñez',        'ADMINISTRATIVO',      7800      FROM dual UNION ALL
   SELECT 'EMP-108',     'Diego',        'Vargas',       'OFICINA_CENTRAL',     15000     FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM NOM_EMPLEADO e WHERE e.CODIGO_EMPLEADO = v.cod);

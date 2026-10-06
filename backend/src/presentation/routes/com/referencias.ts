@@ -28,7 +28,7 @@ const read = new CompraReadRepository();
 
 function intParam(req: FastifyRequest, key = "id"): number {
   const n = Number.parseInt((req.params as Record<string, string>)[key] ?? "", 10);
-  if (!Number.isInteger(n) || n <= 0) throw new ValidationError(`Parametro '${key}' invalido`);
+  if (!Number.isInteger(n) || n <= 0) throw new ValidationError(`Parámetro '${key}' inválido`);
   return n;
 }
 
@@ -76,6 +76,21 @@ export function registerComReferenciaRoutes(app: FastifyInstance): void {
     { preHandler: authGuard([Permisos.SOLICITUD_CREAR]) },
     async (_req, reply) => {
       reply.send({ data: await read.alertasEscasezPendientes() });
+    },
+  );
+
+  // Vincula las alertas cubiertas con la solicitud recien creada (dejan de ofrecerse).
+  app.post(
+    "/api/com/ref/articulos/bajo-minimo/vincular",
+    { preHandler: authGuard([Permisos.SOLICITUD_CREAR]) },
+    async (req, reply) => {
+      const b = (req.body ?? {}) as { idSolicitud?: unknown; idAlertas?: unknown };
+      const idSolicitud = Number(b.idSolicitud);
+      const ids = Array.isArray(b.idAlertas) ? b.idAlertas.map(Number).filter((n) => Number.isInteger(n) && n > 0) : [];
+      if (!Number.isInteger(idSolicitud) || idSolicitud <= 0 || ids.length === 0 || ids.length > 200) {
+        throw new ValidationError("idSolicitud e idAlertas (1-200) son obligatorios");
+      }
+      return reply.send({ data: { vinculadas: await read.vincularAlertasEscasez(idSolicitud, ids) } });
     },
   );
 
@@ -198,7 +213,7 @@ export function registerComReferenciaRoutes(app: FastifyInstance): void {
         10,
       );
       if (!Number.isInteger(idSolicitud) || idSolicitud <= 0) {
-        throw new ValidationError("Parametro 'idSolicitud' requerido");
+        throw new ValidationError("Parámetro 'idSolicitud' requerido");
       }
       reply.send({ data: await read.cotizacionesAdjudicadas(idSolicitud) });
     },

@@ -40,7 +40,7 @@ afterAll(async () => {
   await oraclePool().close();
 });
 
-describe("CRUD generico COM_PROVEEDOR (end-to-end)", () => {
+describe("CRUD genérico COM_PROVEEDOR (end-to-end)", () => {
   let createdId = 0;
   const nit = `INT-${Date.now()}`;
 

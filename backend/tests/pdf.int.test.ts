@@ -67,3 +67,18 @@ describe("PDF del comparativo", () => {
     expect(get.rawPayload.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });
+
+describe("PDF de la solicitud", () => {
+  it("GET /api/com/solicitudes/:id/pdf devuelve un PDF con los datos de la solicitud", async () => {
+    const res = await app.inject({ method: "GET", url: `/api/com/solicitudes/${idSolicitud}/pdf`, headers: H });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain(`solicitud-${idSolicitud}.pdf`);
+    expect(res.rawPayload.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("una solicitud inexistente da 404 (no un PDF vacío)", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/com/solicitudes/999999999/pdf", headers: H });
+    expect(res.statusCode).toBe(404);
+  });
+});

@@ -7,34 +7,65 @@
  */
 
 import { ValidationError, type ErrorDetail } from "../errors/AppError.js";
-import type {
-  ColumnDescriptor,
-  EntityDescriptor,
+import { acentuar } from "../util/acentos.js";
+import {
+  isSystemColumn,
+  type ColumnDescriptor,
+  type EntityDescriptor,
 } from "../../entities/support/EntityDescriptor.js";
 
 export type Mode = "create" | "update";
 
-function isSystemColumn(d: EntityDescriptor, col: ColumnDescriptor): boolean {
-  if (col.db === d.pk) return true;
-  if (d.version !== undefined && col.db === d.version) return true;
-  if (
-    col.db === d.softDelete.flag ||
-    col.db === d.softDelete.date ||
-    col.db === d.softDelete.user
-  ) {
-    return true;
+/** "fechaRequerida" -> "fecha requerida" (para mensajes al usuario). */
+export function etiquetaDe(prop: string): string {
+  return acentuar(prop.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase());
+}
+
+/** Valida longitud, rango y precision de un numero contra los limites del DDL. */
+function checkNumero(col: ColumnDescriptor, n: number, details: ErrorDetail[]): void {
+  const et = etiquetaDe(col.prop);
+  if (!Number.isFinite(n)) {
+    details.push({ field: col.prop, message: `${et} debe ser un número finito` });
+    return;
   }
-  const a = d.audit;
-  if (
-    a !== undefined &&
-    (col.db === a.createdAt ||
-      col.db === a.createdBy ||
-      col.db === a.modifiedAt ||
-      col.db === a.modifiedBy)
-  ) {
-    return true;
+  if (col.min !== undefined) {
+    if (col.minExclusive === true ? n <= col.min : n < col.min) {
+      details.push({
+        field: col.prop,
+        message:
+          col.minExclusive === true
+            ? `${et} debe ser mayor que ${col.min}`
+            : `${et} no puede ser menor que ${col.min}`,
+      });
+      return;
+    }
   }
-  return false;
+  if (col.max !== undefined && n > col.max) {
+    details.push({ field: col.prop, message: `${et} no puede ser mayor que ${col.max}` });
+    return;
+  }
+  if (col.precision !== undefined) {
+    const escala = col.scale ?? 0;
+    const tope = 10 ** (col.precision - escala);
+    if (Math.abs(n) >= tope) {
+      details.push({
+        field: col.prop,
+        message: `${et} excede el máximo permitido (${tope.toLocaleString("en-US")})`,
+      });
+      return;
+    }
+    // Mas decimales de los que la columna guarda: Oracle redondea en silencio.
+    const factor = 10 ** escala;
+    if (Math.abs(Math.round(n * factor) / factor - n) > 1e-9) {
+      details.push({
+        field: col.prop,
+        message:
+          escala === 0
+            ? `${et} debe ser un entero`
+            : `${et} admite máximo ${escala} decimales`,
+      });
+    }
+  }
 }
 
 function checkValue(
@@ -51,12 +82,22 @@ function checkValue(
   switch (col.type) {
     case "number":
       if (typeof value !== "number" || Number.isNaN(value)) {
-        details.push({ field: col.prop, message: "debe ser numerico" });
+        details.push({ field: col.prop, message: "debe ser numérico" });
+      } else {
+        checkNumero(col, value, details);
       }
       break;
     case "string":
       if (typeof value !== "string") {
         details.push({ field: col.prop, message: "debe ser texto" });
+      } else if (!col.nullable && value.trim() === "") {
+        // Oracle guarda '' como NULL: en una columna NOT NULL fallaria con ORA-01400.
+        details.push({ field: col.prop, message: `${etiquetaDe(col.prop)} no puede estar vacío` });
+      } else if (col.maxLength !== undefined && value.length > col.maxLength) {
+        details.push({
+          field: col.prop,
+          message: `${etiquetaDe(col.prop)} no puede superar ${col.maxLength} caracteres (tiene ${value.length})`,
+        });
       }
       break;
     case "date":
@@ -67,7 +108,7 @@ function checkValue(
       ) {
         details.push({
           field: col.prop,
-          message: "debe ser una fecha ISO valida",
+          message: "debe ser una fecha ISO válida",
         });
       }
       break;
@@ -106,7 +147,7 @@ export function validateAgainstDescriptor(
   exempt: readonly string[] = [],
 ): Record<string, unknown> {
   if (body === null || typeof body !== "object") {
-    throw new ValidationError("El cuerpo de la peticion debe ser un objeto");
+    throw new ValidationError("El cuerpo de la petición debe ser un objeto");
   }
   const input = body as Record<string, unknown>;
   const exemptSet = new Set(exempt);
@@ -129,12 +170,13 @@ export function validateAgainstDescriptor(
     }
 
     checkValue(col, value, details);
-    clean[col.prop] = value;
+    // Sin espacios sobrantes en los extremos (" Acme " y "Acme" son el mismo proveedor).
+    clean[col.prop] = col.type === "string" && typeof value === "string" ? value.trim() : value;
   }
 
   if (details.length > 0) {
     throw new ValidationError(
-      "El cuerpo de la peticion no es valido",
+      "El cuerpo de la petición no es válido",
       details,
     );
   }

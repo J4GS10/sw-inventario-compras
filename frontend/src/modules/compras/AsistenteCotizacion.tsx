@@ -34,7 +34,7 @@ export function AsistenteCotizacion(props: {
   function alCrearRfq(created?: Record<string, unknown>): void {
     const idRfq = Number(created?.["idRfq"]);
     if (!Number.isInteger(idRfq) || idRfq <= 0) {
-      toast.error("No se pudo continuar: el RFQ no devolvio un id valido");
+      toast.error("No se pudo continuar: el RFQ no devolvió un id válido");
       props.onClose();
       return;
     }
@@ -48,12 +48,12 @@ export function AsistenteCotizacion(props: {
           nombre: String(r["razonSocial"] ?? `Proveedor ${String(r["idProveedor"] ?? "")}`),
         }));
         if (proveedores.length === 0) {
-          toast.error("El RFQ no quedo con proveedores invitados");
+          toast.error("El RFQ no quedó con proveedores invitados");
           props.onClose();
           return;
         }
         toast.info(
-          `RFQ creado — registra la cotizacion de ${proveedores[0]!.nombre} (1 de ${proveedores.length})`,
+          `RFQ creado — registra la cotización de ${proveedores[0]!.nombre} (1 de ${proveedores.length})`,
         );
         avanzar({ tipo: "cotizacion", idRfq, proveedores, indice: 0 });
       } catch (e: unknown) {
@@ -68,7 +68,7 @@ export function AsistenteCotizacion(props: {
     const siguiente = paso.indice + 1;
     if (siguiente < paso.proveedores.length) {
       toast.info(
-        `Cotizacion de ${paso.proveedores[siguiente]!.nombre} (${siguiente + 1} de ${paso.proveedores.length})`,
+        `Cotización de ${paso.proveedores[siguiente]!.nombre} (${siguiente + 1} de ${paso.proveedores.length})`,
       );
       avanzar({ ...paso, indice: siguiente });
       return;
@@ -82,7 +82,7 @@ export function AsistenteCotizacion(props: {
     // cotizaciones ya guardadas quedan; se completa despues desde la
     // pantalla de Cotizaciones si hace falta. Se interpreta como "saltar
     // este proveedor" y se sigue con el siguiente.
-    toast.info("Proveedor saltado — puedes registrar su cotizacion despues desde Cotizaciones");
+    toast.info("Proveedor saltado — puedes registrar su cotización después desde Cotizaciones");
     siguienteCotizacion();
   }
 

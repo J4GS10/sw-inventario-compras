@@ -144,6 +144,36 @@ export interface FacturaPendienteLiquidacionRow {
  * continue. `nombre` null cuando el responsable es un departamento entero
  * (Compras), no una persona especifica.
  */
+/** Un hito del recorrido completo de una solicitud (de la peticion al pago). */
+export interface HitoTrazabilidad {
+  readonly tipo:
+    | "SOLICITUD"
+    | "APROBACION"
+    | "RFQ"
+    | "COTIZACION"
+    | "ORDEN"
+    | "RECEPCION"
+    | "DEVOLUCION"
+    | "FACTURA"
+    | "PAGO";
+  readonly fecha: string;
+  readonly titulo: string;
+  readonly quien: string | null;
+  readonly detalle: string | null;
+  readonly ref: number;
+}
+
+export interface DecisionSolicitudRow {
+  readonly idWorkflow: number;
+  readonly idSolicitud: number;
+  readonly estadoAnterior: string;
+  readonly estadoNuevo: string;
+  readonly comentario: string | null;
+  readonly fecha: string;
+  readonly por: string;
+  readonly resumen: string;
+}
+
 export interface ResponsableSolicitud {
   readonly rol: string;
   readonly nombre: string | null;
@@ -167,6 +197,29 @@ export interface RecepcionPdfLineaRow {
   readonly unidadMedida: string;
   readonly cantidadRecibida: number;
   readonly cantidadRechazada: number;
+}
+
+/** Solicitud resuelta (nombres legibles) para su PDF. */
+export interface SolicitudPdfRow {
+  readonly header: {
+    readonly idSolicitud: number;
+    readonly estado: string;
+    readonly justificacion: string;
+    readonly prioridad: number;
+    readonly montoEstimado: number | null;
+    readonly fechaCreacion: string;
+    readonly solicitante: string;
+    readonly sucursal: string;
+    readonly grupoCompra: string;
+  };
+  readonly lineas: readonly {
+    readonly articulo: string;
+    readonly descripcion: string;
+    readonly unidadMedida: string;
+    readonly cantidadSolicitada: number;
+    readonly cantidadAutorizada: number | null;
+    readonly fechaRequerida: string;
+  }[];
 }
 
 /** Cabecera de OC resuelta para el PDF (nombres legibles, no ids crudos). */
@@ -203,6 +256,8 @@ export interface OrdenCompraPdfLineaRow {
 export interface LineaPendienteOcRow {
   readonly idOcDetalle: number;
   readonly descripcion: string;
+  /** Codigo del articulo (para identificar el renglon al escanear). */
+  readonly codigo: string | null;
   readonly cantidad: number;
   readonly cantidadProcesada: number;
   readonly cantidadPendiente: number;
@@ -742,7 +797,7 @@ export class CompraReadRepository {
           return {
             idProveedor: num(r["ID_PROVEEDOR"]),
             etiqueta: habitual
-              ? `${razonSocial} · ya suministro algo de esta solicitud`
+              ? `${razonSocial} · ya suministró algo de esta solicitud`
               : razonSocial,
           };
         });
@@ -882,13 +937,16 @@ export class CompraReadRepository {
       filtros.push("od.ID_ARTICULO = :idArticulo");
       binds["idArticulo"] = q.idArticulo;
     }
+    // `desde`/`hasta` son DIAS (YYYY-MM-DD) y `hasta` es INCLUSIVO, igual que en los
+    // reportes de gasto/desempeno: "hasta hoy" incluye lo registrado hoy. Antes se
+    // comparaba contra la medianoche y el filtro por la UI excluia el dia final.
     if (q.desde !== undefined) {
-      filtros.push("r.FECHA_RECEPCION >= :desde");
-      binds["desde"] = new Date(q.desde);
+      filtros.push("r.FECHA_RECEPCION >= TO_DATE(:desde, 'YYYY-MM-DD')");
+      binds["desde"] = q.desde;
     }
     if (q.hasta !== undefined) {
-      filtros.push("r.FECHA_RECEPCION <= :hasta");
-      binds["hasta"] = new Date(q.hasta);
+      filtros.push("r.FECHA_RECEPCION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1");
+      binds["hasta"] = q.hasta;
     }
     const andFiltros = filtros.length > 0 ? `AND ${filtros.join(" AND ")}` : "";
     const offset = (q.page - 1) * q.pageSize;
@@ -1111,6 +1169,26 @@ export class CompraReadRepository {
   }
 
   /**
+   * Vincula alertas de escasez con la solicitud que las cubre: dejan de ofrecerse (mientras la
+   * solicitud no sea rechazada) y no se vuelve a pedir lo mismo dos veces.
+   */
+  public async vincularAlertasEscasez(idSolicitud: number, idAlertas: readonly number[]): Promise<number> {
+    if (idAlertas.length === 0) return 0;
+    return oraclePool().withTransaction(async (c) => {
+      let n = 0;
+      for (const id of idAlertas) {
+        const r = await c.execute(
+          `UPDATE INV_ALERTA_ESCASEZ SET ID_SOLICITUD_GENERADA = :s
+            WHERE ID_ALERTA = :a AND ELIMINADO = 'N' AND ESTADO = 'PENDIENTE'`,
+          asBinds({ s: idSolicitud, a: id }),
+        );
+        n += r.rowsAffected ?? 0;
+      }
+      return n;
+    });
+  }
+
+  /**
    * Alertas de escasez abiertas (INV_ALERTA_ESCASEZ.ESTADO = 'PENDIENTE'), con
    * el faltante y la cantidad sugerida de reposicion ya calculados
    * (`stockMaximo - cantidadActual`, viva vs. INV_EXISTENCIA_BODEGA — no la
@@ -1136,6 +1214,9 @@ export class CompraReadRepository {
       LEFT JOIN INV_EXISTENCIA_BODEGA ex
         ON ex.ID_ARTICULO = a.ID_ARTICULO AND ex.ID_BODEGA = a.ID_BODEGA AND ex.ELIMINADO = 'N'
       WHERE a.ELIMINADO = 'N' AND a.ESTADO = 'PENDIENTE'
+        AND NOT EXISTS (
+          SELECT 1 FROM COM_SOLICITUD_COMPRA s
+           WHERE s.ID_SOLICITUD = a.ID_SOLICITUD_GENERADA AND s.ELIMINADO = 'N' AND s.ESTADO <> 'RECHAZADA')
       ORDER BY a.FECHA_DETECCION DESC FETCH FIRST 50 ROWS ONLY`;
     return oraclePool().withConnection(async (c) => {
       try {
@@ -1339,6 +1420,58 @@ export class CompraReadRepository {
   }
 
   /** Datos resueltos de una Recepcion para la Nota de Ingreso oficial (PDF). */
+  public async solicitudParaPdf(idSolicitud: number, conn?: Connection): Promise<SolicitudPdfRow | null> {
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const h = await c.execute<Row>(
+          `SELECT sc.ID_SOLICITUD, sc.ESTADO, sc.JUSTIFICACION, sc.PRIORIDAD, sc.MONTO_ESTIMADO, sc.FECHA_CREACION,
+                  (e.NOMBRES || ' ' || e.APELLIDOS) AS SOLICITANTE, s.NOMBRE AS SUCURSAL, g.NOMBRE AS GRUPO
+             FROM COM_SOLICITUD_COMPRA sc
+             JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = sc.ID_EMPLEADO_SOLICITANTE
+             JOIN NOM_SUCURSAL s ON s.ID_SUCURSAL = sc.ID_SUCURSAL
+             JOIN COM_GRUPO_COMPRA g ON g.ID_GRUPO_COMPRA = sc.ID_GRUPO_COMPRA
+            WHERE sc.ID_SOLICITUD = :id AND sc.ELIMINADO = 'N'`,
+          { id: idSolicitud },
+        );
+        const hr = h.rows?.[0];
+        if (hr === undefined) return null;
+        const d = await c.execute<Row>(
+          `SELECT NVL(a.CODIGO || ' — ' || a.NOMBRE, '—') AS ARTICULO, sd.DESCRIPCION, NVL(u.ABREVIATURA, u.CODIGO) AS UNIDAD,
+                  sd.CANTIDAD_SOLICITADA, sd.CANTIDAD_AUTORIZADA, sd.FECHA_REQUERIDA
+             FROM COM_SOLICITUD_DETALLE sd
+             LEFT JOIN INV_ARTICULO a ON a.ID_ARTICULO = sd.ID_ARTICULO
+             JOIN INV_UNIDAD_MEDIDA u ON u.ID_UNIDAD_MEDIDA = sd.ID_UNIDAD_MEDIDA
+            WHERE sd.ID_SOLICITUD = :id AND sd.ELIMINADO = 'N'
+            ORDER BY sd.ID_SOLICITUD_DETALLE`,
+          { id: idSolicitud },
+        );
+        return {
+          header: {
+            idSolicitud: num(hr["ID_SOLICITUD"]),
+            estado: str(hr["ESTADO"]),
+            justificacion: str(hr["JUSTIFICACION"]),
+            prioridad: num(hr["PRIORIDAD"]),
+            montoEstimado: hr["MONTO_ESTIMADO"] === null || hr["MONTO_ESTIMADO"] === undefined ? null : num(hr["MONTO_ESTIMADO"]),
+            fechaCreacion: iso(hr["FECHA_CREACION"]),
+            solicitante: str(hr["SOLICITANTE"]),
+            sucursal: str(hr["SUCURSAL"]),
+            grupoCompra: str(hr["GRUPO"]),
+          },
+          lineas: (d.rows ?? []).map((r) => ({
+            articulo: str(r["ARTICULO"]),
+            descripcion: str(r["DESCRIPCION"]),
+            unidadMedida: str(r["UNIDAD"]),
+            cantidadSolicitada: num(r["CANTIDAD_SOLICITADA"]),
+            cantidadAutorizada: r["CANTIDAD_AUTORIZADA"] === null || r["CANTIDAD_AUTORIZADA"] === undefined ? null : num(r["CANTIDAD_AUTORIZADA"]),
+            fechaRequerida: iso(r["FECHA_REQUERIDA"]),
+          })),
+        };
+      } catch (error) {
+        throw mapOracleError(error, "COM_SOLICITUD_COMPRA");
+      }
+    }, conn);
+  }
+
   public async recepcionParaPdf(
     idRecepcion: number,
     conn?: Connection,
@@ -1452,6 +1585,165 @@ export class CompraReadRepository {
   }
 
   /**
+   * Recorrido completo de una solicitud: creada, aprobaciones, RFQ, cotizaciones, ordenes que
+   * nacieron de ellas, recepciones, devoluciones, facturas y pagos — en orden cronologico.
+   * Se arma enlazando los documentos reales (no hay tabla de "eventos").
+   */
+  public async trazabilidadSolicitud(idSolicitud: number, conn?: Connection): Promise<readonly HitoTrazabilidad[]> {
+    const ocs = `(SELECT od.ID_ORDEN_COMPRA
+                  FROM COM_ORDEN_COMPRA_DETALLE od
+                  JOIN COM_COTIZACION_DETALLE cd ON cd.ID_COTIZACION_DETALLE = od.ID_COTIZACION_DETALLE
+                  JOIN COM_COTIZACION_PROVEEDOR c ON c.ID_COTIZACION = cd.ID_COTIZACION
+                  JOIN COM_RFQ_CABECERA r ON r.ID_RFQ = c.ID_RFQ
+                 WHERE r.ID_SOLICITUD = :id AND od.ELIMINADO = 'N')`;
+    const recs = `(SELECT re.ID_RECEPCION FROM COM_RECEPCION re WHERE re.ELIMINADO = 'N' AND re.ID_ORDEN_COMPRA IN ${ocs})`;
+    const sql = `
+      SELECT * FROM (
+        SELECT 'SOLICITUD' AS TIPO, CAST(sc.FECHA_CREACION AS TIMESTAMP) AS FECHA,
+               'Solicitud SOL-' || sc.ID_SOLICITUD || ' creada' AS TITULO,
+               TRIM(e.NOMBRES || ' ' || e.APELLIDOS) AS QUIEN, SUBSTR(sc.JUSTIFICACION, 1, 200) AS DETALLE, sc.ID_SOLICITUD AS REF
+          FROM COM_SOLICITUD_COMPRA sc LEFT JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = sc.ID_EMPLEADO_SOLICITANTE
+         WHERE sc.ID_SOLICITUD = :id AND sc.ELIMINADO = 'N'
+        UNION ALL
+        SELECT 'APROBACION', CAST(w.FECHA AS TIMESTAMP),
+               CASE WHEN w.ESTADO_NUEVO = 'RECHAZADA' THEN 'Rechazada' WHEN w.ESTADO_NUEVO = 'PENDIENTE_GERENTE' THEN 'Aprobada por el jefe'
+                    WHEN w.ESTADO_NUEVO = 'EN_COTIZACION' THEN 'Aprobada por el gerente' ELSE 'Cambio a ' || w.ESTADO_NUEVO END,
+               TRIM(e.NOMBRES || ' ' || e.APELLIDOS), w.COMENTARIO, w.ID_WORKFLOW_APROBACION
+          FROM COM_WORKFLOW_APROBACION w LEFT JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = w.ID_EMPLEADO_REALIZA
+         WHERE w.ID_SOLICITUD = :id AND w.ESTADO_ANTERIOR IS NOT NULL AND w.ELIMINADO = 'N'
+        UNION ALL
+        SELECT 'RFQ', CAST(r.FECHA_EMISION AS TIMESTAMP),
+               'RFQ-' || r.ID_RFQ || ' enviado a ' || (SELECT COUNT(*) FROM COM_RFQ_PROVEEDOR p WHERE p.ID_RFQ = r.ID_RFQ AND p.ELIMINADO = 'N') || ' proveedores',
+               NULL, 'Estado: ' || r.ESTADO, r.ID_RFQ
+          FROM COM_RFQ_CABECERA r WHERE r.ID_SOLICITUD = :id AND r.ELIMINADO = 'N'
+        UNION ALL
+        SELECT 'COTIZACION', CAST(c.FECHA_COTIZACION AS TIMESTAMP), 'Cotización de ' || p.RAZON_SOCIAL, NULL, NULL, c.ID_COTIZACION
+          FROM COM_COTIZACION_PROVEEDOR c
+          JOIN COM_RFQ_CABECERA r ON r.ID_RFQ = c.ID_RFQ AND r.ELIMINADO = 'N'
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = c.ID_PROVEEDOR
+         WHERE r.ID_SOLICITUD = :id AND c.ELIMINADO = 'N'
+        UNION ALL
+        SELECT 'ORDEN', CAST(oc.FECHA_EMISION AS TIMESTAMP), 'Orden OC-' || oc.ID_ORDEN_COMPRA || ' emitida a ' || p.RAZON_SOCIAL,
+               NULL, 'Estado: ' || oc.ESTADO, oc.ID_ORDEN_COMPRA
+          FROM COM_ORDEN_COMPRA oc JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
+         WHERE oc.ELIMINADO = 'N' AND oc.ID_ORDEN_COMPRA IN ${ocs}
+        UNION ALL
+        SELECT 'RECEPCION', CAST(re.FECHA_RECEPCION AS TIMESTAMP), 'Recepción REC-' || re.ID_RECEPCION || ' de OC-' || re.ID_ORDEN_COMPRA,
+               TRIM(e.NOMBRES || ' ' || e.APELLIDOS), NULL, re.ID_RECEPCION
+          FROM COM_RECEPCION re LEFT JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = re.ID_EMPLEADO_RECIBE
+         WHERE re.ELIMINADO = 'N' AND re.ID_ORDEN_COMPRA IN ${ocs}
+        UNION ALL
+        SELECT 'DEVOLUCION', CAST(d.FECHA_DEVOLUCION AS TIMESTAMP), 'Devolución DEV-' || d.ID_DEVOLUCION || ' al proveedor',
+               TRIM(e.NOMBRES || ' ' || e.APELLIDOS), SUBSTR(d.MOTIVO, 1, 200), d.ID_DEVOLUCION
+          FROM COM_DEVOLUCION_PROVEEDOR d LEFT JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = d.ID_EMPLEADO_SOLICITA
+         WHERE d.ELIMINADO = 'N' AND d.ID_RECEPCION IN ${recs}
+        UNION ALL
+        SELECT 'FACTURA', CAST(re.FECHA_RECEPCION AS TIMESTAMP) + INTERVAL '1' SECOND,
+               CASE WHEN f.NUMERO_DTE IS NULL THEN 'Factura generada por REC-' || re.ID_RECEPCION ELSE 'Factura ' || f.NUMERO_DTE END, NULL,
+               CASE f.ESTADO WHEN 'PAGADA' THEN 'Pagada' WHEN 'ANULADA' THEN 'Anulada' ELSE 'Pendiente de liquidar' END, f.ID_FACTURA_PROVEEDOR
+          FROM CXP_FACTURA_PROVEEDOR f JOIN COM_RECEPCION re ON re.ID_RECEPCION = f.ID_RECEPCION
+         WHERE f.ELIMINADO = 'N' AND f.ID_RECEPCION IN ${recs}
+        UNION ALL
+        SELECT 'PAGO', CAST(cp.FECHA AS TIMESTAMP), 'Pago registrado (' || cp.FORMA_PAGO || ')',
+               NULL, 'Monto: ' || TO_CHAR(cp.MONTO, 'FM999G999G990D00'), cp.ID_CONTRASENA
+          FROM CXP_CONTRASENA_PAGO cp JOIN CXP_FACTURA_PROVEEDOR f ON f.ID_FACTURA_PROVEEDOR = cp.ID_FACTURA_PROVEEDOR
+         WHERE cp.ELIMINADO = 'N' AND f.ELIMINADO = 'N' AND f.ID_RECEPCION IN ${recs}
+      ) ORDER BY FECHA, REF`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, { id: idSolicitud });
+        return (res.rows ?? []).map((r) => ({
+          tipo: str(r["TIPO"]) as HitoTrazabilidad["tipo"],
+          fecha: r["FECHA"] instanceof Date ? r["FECHA"].toISOString() : str(r["FECHA"]),
+          titulo: str(r["TITULO"]),
+          quien: str(r["QUIEN"]).trim() === "" ? null : str(r["QUIEN"]).trim(),
+          detalle: str(r["DETALLE"]) === "" ? null : str(r["DETALLE"]),
+          ref: num(r["REF"]),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "trazabilidad");
+      }
+    }, conn);
+  }
+
+  /** Usuario (SEG_USUARIO) ligado a un empleado, o null. Para dirigir una notificacion a la persona. */
+  public async usuarioDeEmpleado(idEmpleado: number, conn?: Connection): Promise<number | null> {
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(
+          `SELECT ID_USUARIO FROM SEG_USUARIO WHERE ID_EMPLEADO = :e AND ELIMINADO = 'N' AND (ESTADO IS NULL OR ESTADO = 'A')`,
+          { e: idEmpleado },
+        );
+        const r = res.rows?.[0];
+        return r === undefined ? null : num(r["ID_USUARIO"]);
+      } catch (error) {
+        throw mapOracleError(error, "SEG_USUARIO");
+      }
+    }, conn);
+  }
+
+  /** "Nombre Apellido" de un empleado ("" si no existe). */
+  public async nombreDeEmpleado(idEmpleado: number, conn?: Connection): Promise<string> {
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(
+          `SELECT TRIM(NOMBRES || ' ' || APELLIDOS) AS N FROM NOM_EMPLEADO WHERE ID_EMPLEADO = :e`,
+          { e: idEmpleado },
+        );
+        const r = res.rows?.[0];
+        return r === undefined ? "" : str(r["N"]);
+      } catch (error) {
+        throw mapOracleError(error, "NOM_EMPLEADO");
+      }
+    }, conn);
+  }
+
+  /**
+   * Decisiones (aprobo / rechazo) tomadas en los ULTIMOS `dias` sobre las
+   * solicitudes de un empleado, mas recientes primero. Se deriva del historial
+   * de aprobacion (COM_WORKFLOW_APROBACION): no hay tabla de notificaciones, asi
+   * que sobrevive a reinicios y a estar desconectado.
+   */
+  public async decisionesSobreSolicitudesDe(
+    idEmpleado: number,
+    dias: number,
+    conn?: Connection,
+  ): Promise<readonly DecisionSolicitudRow[]> {
+    const sql = `
+      SELECT w.ID_WORKFLOW_APROBACION AS ID, w.ID_SOLICITUD AS ID_SOLICITUD,
+             w.ESTADO_ANTERIOR AS ANTERIOR, w.ESTADO_NUEVO AS NUEVO, w.COMENTARIO AS COMENTARIO,
+             w.FECHA AS FECHA, TRIM(e.NOMBRES || ' ' || e.APELLIDOS) AS POR,
+             SUBSTR(sc.JUSTIFICACION, 1, 80) AS RESUMEN
+        FROM COM_WORKFLOW_APROBACION w
+        JOIN COM_SOLICITUD_COMPRA sc ON sc.ID_SOLICITUD = w.ID_SOLICITUD AND sc.ELIMINADO = 'N'
+        LEFT JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = w.ID_EMPLEADO_REALIZA
+       WHERE w.ELIMINADO = 'N'
+         AND w.ESTADO_ANTERIOR IS NOT NULL
+         AND sc.ID_EMPLEADO_SOLICITANTE = :emp
+         AND w.ID_EMPLEADO_REALIZA <> :emp
+         AND w.FECHA >= SYSTIMESTAMP - NUMTODSINTERVAL(:dias, 'DAY')
+       ORDER BY w.FECHA DESC, w.ID_WORKFLOW_APROBACION DESC
+       FETCH FIRST 30 ROWS ONLY`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, { emp: idEmpleado, dias });
+        return (res.rows ?? []).map((r) => ({
+          idWorkflow: num(r["ID"]),
+          idSolicitud: num(r["ID_SOLICITUD"]),
+          estadoAnterior: str(r["ANTERIOR"]),
+          estadoNuevo: str(r["NUEVO"]),
+          comentario: str(r["COMENTARIO"]) === "" ? null : str(r["COMENTARIO"]),
+          fecha: r["FECHA"] instanceof Date ? r["FECHA"].toISOString() : str(r["FECHA"]),
+          por: str(r["POR"]),
+          resumen: str(r["RESUMEN"]),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "COM_WORKFLOW_APROBACION");
+      }
+    }, conn);
+  }
+
+  /**
    * Responsable del siguiente paso de cada solicitud, segun su estado:
    *  - PENDIENTE_JEFE    -> el jefe inmediato del solicitante (persona).
    *  - PENDIENTE_GERENTE -> el gerente del departamento del solicitante.
@@ -1495,7 +1787,7 @@ export class CompraReadRepository {
           if (estado === "PENDIENTE_JEFE") {
             out[idSolicitud] = { rol: "Jefe inmediato", nombre: nombreOrNull(r["JEFE_NOMBRE"]) };
           } else if (estado === "PENDIENTE_GERENTE") {
-            out[idSolicitud] = { rol: "Gerente de area", nombre: nombreOrNull(r["GERENTE_NOMBRE"]) };
+            out[idSolicitud] = { rol: "Gerente de área", nombre: nombreOrNull(r["GERENTE_NOMBRE"]) };
           } else if (estado === "EN_COTIZACION") {
             out[idSolicitud] = { rol: "Departamento de Compras", nombre: null };
           } else {
@@ -1620,9 +1912,11 @@ export class CompraReadRepository {
       SELECT
         od.ID_OC_DETALLE                       AS ID_OC_DETALLE,
         od.DESCRIPCION                          AS DESCRIPCION,
+        art.CODIGO                              AS CODIGO,
         od.CANTIDAD                             AS CANTIDAD,
         NVL(p.PROCESADA, 0)                     AS PROCESADA
       FROM COM_ORDEN_COMPRA_DETALLE od
+      LEFT JOIN INV_ARTICULO art ON art.ID_ARTICULO = od.ID_ARTICULO
       LEFT JOIN procesado p ON p.ID_OC_DETALLE = od.ID_OC_DETALLE
       WHERE od.ID_ORDEN_COMPRA = :idOrdenCompra AND od.ELIMINADO = 'N'
       ORDER BY od.ID_OC_DETALLE`;
@@ -1635,6 +1929,7 @@ export class CompraReadRepository {
           return {
             idOcDetalle: num(r["ID_OC_DETALLE"]),
             descripcion: str(r["DESCRIPCION"]),
+            codigo: r["CODIGO"] === null || r["CODIGO"] === undefined ? null : str(r["CODIGO"]),
             cantidad,
             cantidadProcesada: procesada,
             cantidadPendiente: Math.max(0, Number((cantidad - procesada).toFixed(2))),

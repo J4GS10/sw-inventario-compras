@@ -11,6 +11,7 @@
  *   BODEGA           -> ordenes ENVIADA / EN_TRANSITO por recibir
  */
 
+import { delegacionService } from "./DelegacionService.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import { hasPermiso, Permisos } from "../../../common/auth/permissions.js";
 import { CompraReadRepository } from "../../../dal/repositories/com/CompraReadRepository.js";
@@ -73,13 +74,40 @@ export class NotificacionService {
     return NotificacionService.instance;
   }
 
+  /**
+   * Respuestas recientes a las solicitudes del usuario (aprobada / rechazada y
+   * por quien). Persistente: se deriva del historial de aprobacion, asi que un
+   * usuario que estaba desconectado las ve al entrar.
+   */
+  public async decisionesRecibidas(ctx: AuditContext): Promise<readonly DecisionRecibida[]> {
+    if (ctx.empleadoId === undefined || ctx.empleadoId <= 0) return [];
+    const filas = await this.read.decisionesSobreSolicitudesDe(ctx.empleadoId, DIAS_DECISIONES);
+    return filas.map((f) => {
+      const rechazada = f.estadoNuevo === "RECHAZADA";
+      const por = f.por !== "" ? f.por : "Un aprobador";
+      return {
+        idWorkflow: f.idWorkflow,
+        idSolicitud: f.idSolicitud,
+        resultado: rechazada ? "RECHAZADA" : "APROBADA",
+        estadoNuevo: f.estadoNuevo,
+        por,
+        mensaje: `${por} ${rechazada ? "rechazó" : "aprobó"} tu solicitud SOL-${f.idSolicitud}`,
+        comentario: f.comentario,
+        fecha: f.fecha,
+        resumen: f.resumen,
+      } as DecisionRecibida;
+    });
+  }
+
   public async pendientes(ctx: AuditContext): Promise<BandejaPendientes> {
     const todo = hasPermiso(ctx.permisos, "*");
     const items: Notificacion[] = [];
+    // Lo que le toca aprobar por delegacion vigente tambien llega a su bandeja.
+    const delegados = await delegacionService.permisosDeAprobacionDelegados(ctx.empleadoId);
 
     // --- Aprobaciones: SOLO si el usuario puede aprobar ese nivel Y la
     //     solicitud cae en su equipo/area (nunca notificar lo que no le toca). ---
-    if (todo || hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_JEFE)) {
+    if (todo || hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_JEFE) || delegados.includes(Permisos.SOLICITUD_APROBAR_JEFE)) {
       const alcance = await this.alcanceAprobacion(ctx);
       if (alcance !== NADA) {
         const pend = await this.read.solicitudesEnEstado("PENDIENTE_JEFE", alcance);
@@ -87,7 +115,7 @@ export class NotificacionService {
           items.push({
             tipo: "APROBAR_JEFE",
             titulo: "Solicitudes por aprobar (jefe)",
-            detalle: "Esperan tu autorizacion de primer nivel.",
+            detalle: "Esperan tu autorización de primer nivel.",
             cantidad: pend.length,
             leafId: "com-doc-solicitudes",
             refs: pend.map((p) => p.idSolicitud),
@@ -95,7 +123,7 @@ export class NotificacionService {
         }
       }
     }
-    if (todo || hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_GERENTE)) {
+    if (todo || hasPermiso(ctx.permisos, Permisos.SOLICITUD_APROBAR_GERENTE) || delegados.includes(Permisos.SOLICITUD_APROBAR_GERENTE)) {
       const alcance = await this.alcanceAprobacion(ctx);
       if (alcance !== NADA) {
         const pend = await this.read.solicitudesEnEstado("PENDIENTE_GERENTE", alcance);
@@ -103,7 +131,7 @@ export class NotificacionService {
           items.push({
             tipo: "APROBAR_GERENTE",
             titulo: "Solicitudes por aprobar (gerente)",
-            detalle: "Aprobadas por el jefe; esperan tu autorizacion de area.",
+            detalle: "Aprobadas por el jefe; esperan tu autorización de área.",
             cantidad: pend.length,
             leafId: "com-doc-solicitudes",
             refs: pend.map((p) => p.idSolicitud),
@@ -134,7 +162,7 @@ export class NotificacionService {
         items.push({
           tipo: "ORDEN_PENDIENTE",
           titulo: "Listas para generar la Orden de Compra",
-          detalle: "El financiero ya adjudico la mejor oferta.",
+          detalle: "El financiero ya adjudicó la mejor oferta.",
           cantidad: porOrdenar.length,
           leafId: "com-an-comparativo",
           refs: porOrdenar.map((p) => p.idSolicitud),
@@ -149,7 +177,7 @@ export class NotificacionService {
         items.push({
           tipo: "ADJUDICAR",
           titulo: "Comparativos por adjudicar",
-          detalle: "Tienen cotizaciones y aun no se elige la mejor oferta.",
+          detalle: "Tienen cotizaciones y aún no se elige la mejor oferta.",
           cantidad: listos.length,
           leafId: "com-an-comparativo",
           refs: listos.map((p) => p.idSolicitud),
@@ -163,8 +191,8 @@ export class NotificacionService {
       if (oc.length > 0) {
         items.push({
           tipo: "RECIBIR",
-          titulo: "Ordenes por recibir",
-          detalle: "Enviadas o en transito; registra la recepcion cuando lleguen.",
+          titulo: "Órdenes por recibir",
+          detalle: "Enviadas o en tránsito; registra la recepción cuando lleguen.",
           cantidad: oc.length,
           leafId: "com-doc-recepciones",
           refs: oc.map((o) => o.idOrdenCompra),
@@ -180,8 +208,8 @@ export class NotificacionService {
       if (bajoMinimo.length > 0) {
         items.push({
           tipo: "ESCASEZ",
-          titulo: "Articulos por reabastecer",
-          detalle: "La existencia cayo bajo el stock minimo; hay cantidad sugerida de reposicion.",
+          titulo: "Artículos por reabastecer",
+          detalle: "La existencia cayó bajo el stock mínimo; hay cantidad sugerida de reposición.",
           cantidad: bajoMinimo.length,
           leafId: "com-doc-solicitudes",
           refs: bajoMinimo.map((a) => a.idArticulo),
@@ -192,5 +220,20 @@ export class NotificacionService {
     return { total: items.reduce((a, n) => a + n.cantidad, 0), items };
   }
 }
+
+export interface DecisionRecibida {
+  readonly idWorkflow: number;
+  readonly idSolicitud: number;
+  readonly resultado: "APROBADA" | "RECHAZADA";
+  readonly estadoNuevo: string;
+  readonly por: string;
+  readonly mensaje: string;
+  readonly comentario: string | null;
+  readonly fecha: string;
+  readonly resumen: string;
+}
+
+/** Ventana de "respuestas a tus solicitudes" (dias). */
+export const DIAS_DECISIONES = 14;
 
 export const notificacionService = NotificacionService.getInstance();

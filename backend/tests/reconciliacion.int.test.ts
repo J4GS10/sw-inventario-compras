@@ -67,7 +67,7 @@ beforeAll(async () => {
       detalles: [
         {
           idArticulo: ids.articulo,
-          descripcion: "Articulo reconciliacion",
+          descripcion: "Artículo reconciliacion",
           cantidadSolicitada: 8,
           idUnidadMedida: ids.unidadMedida,
           fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -135,7 +135,7 @@ beforeAll(async () => {
       lineas: [
         {
           idArticulo: ids.articulo,
-          descripcion: "Articulo reconciliacion",
+          descripcion: "Artículo reconciliacion",
           cantidad: 8,
           idUnidadMedida: ids.unidadMedida,
           idCotizacionDetalle: cotDetalle,
@@ -174,8 +174,8 @@ afterAll(async () => {
   await stopTestApp(app);
 });
 
-describe("Reconciliacion de una recepcion (consistencia + reprocesar)", () => {
-  it("1. la recepcion recien registrada esta consistente (kardex + CxP ok)", async () => {
+describe("Reconciliacion de una recepción (consistencia + reprocesar)", () => {
+  it("1. la recepción recién registrada esta consistente (kardex + CxP ok)", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/api/com/recepciones/${s.idRecepcion}/consistencia`,
@@ -250,7 +250,7 @@ describe("Reconciliacion de una recepcion (consistencia + reprocesar)", () => {
     expect(facturas).toBe(1);
   });
 
-  it("5. reprocesar una recepcion inexistente da 404", async () => {
+  it("5. reprocesar una recepción inexistente da 404", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/recepciones/99999999/reprocesar",
@@ -259,7 +259,7 @@ describe("Reconciliacion de una recepcion (consistencia + reprocesar)", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("6. no se puede reprocesar una recepcion ya eliminada (reversada)", async () => {
+  it("6. no se puede reprocesar una recepción ya eliminada (reversada)", async () => {
     const rev = await app.inject({
       method: "POST",
       url: `/api/com/recepciones/${s.idRecepcion}/reversar`,

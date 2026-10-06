@@ -14,6 +14,7 @@ import type { FastifyRequest, preHandlerHookHandler } from "fastify";
 import { env } from "../../common/config/EnvConfig.js";
 import { ForbiddenError, UnauthorizedError } from "../../common/errors/AppError.js";
 import { verifyJwt, type JwtPayload } from "../../common/auth/jwt.js";
+import { esLoopback } from "../../common/security/clientIp.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -26,7 +27,15 @@ function resolvePayload(request: FastifyRequest): JwtPayload {
   if (typeof header === "string" && header.startsWith("Bearer ")) {
     return verifyJwt(header.slice("Bearer ".length).trim(), env().auth.jwtSecret);
   }
-  if (env().devAuth) {
+  // El atajo de desarrollo SOLO vale desde la propia maquina y sin proxy delante:
+  // con el backend en 0.0.0.0 y Vite en la LAN, cualquiera en la red lo usaria
+  // (y por el proxy del frontend, tambien) para entrar como administrador.
+  if (
+    env().devAuth &&
+    esLoopback(request.socket.remoteAddress) &&
+    request.headers["x-forwarded-for"] === undefined &&
+    request.headers["forwarded"] === undefined
+  ) {
     const devUser = request.headers["x-dev-user"];
     if (typeof devUser === "string" && devUser.trim() !== "") {
       return { sub: Number.parseInt(devUser, 10), permisos: ["*"], roles: [] };

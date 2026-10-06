@@ -8,17 +8,27 @@
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { ValidationError } from "../../common/errors/AppError.js";
+import {
+  TooManyRequestsError,
+  UnauthorizedError,
+  ValidationError,
+} from "../../common/errors/AppError.js";
+import { FailureRateLimiter } from "../../common/security/RateLimiter.js";
+import { clientIpOf } from "../../common/security/clientIp.js";
+import { env } from "../../common/config/EnvConfig.js";
+import { revocarToken } from "../../common/auth/jwt.js";
 import { authService } from "../../bll/services/seg/AuthService.js";
 import { PERMISO_META, ROLES } from "../../common/auth/permissions.js";
 import { authGuard } from "../middlewares/authGuard.js";
 
+/** 20 logins fallidos por IP en 10 min -> 429. Configurable con LOGIN_MAX_FALLOS_IP. */
+const loginLimiter = new FailureRateLimiter(
+  Number.parseInt(process.env["LOGIN_MAX_FALLOS_IP"] ?? "", 10) || 20,
+  10 * 60 * 1000,
+);
+
 function clientIp(req: FastifyRequest): string | null {
-  const fwd = req.headers["x-forwarded-for"];
-  if (typeof fwd === "string" && fwd.trim() !== "") {
-    return fwd.split(",")[0]?.trim() ?? null;
-  }
-  return typeof req.ip === "string" && req.ip !== "" ? req.ip : null;
+  return clientIpOf(req.socket.remoteAddress, req.headers["x-forwarded-for"]);
 }
 
 export function registerAuthRoutes(app: FastifyInstance): void {
@@ -34,12 +44,23 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         { field: "password", message: "requerido" },
       ]);
     }
-    const { token, sesion } = await authService.login(
-      body.username,
-      body.password,
-      { ip: clientIp(req) },
-    );
-    reply.send({ data: { token, sesion } });
+    // Freno por IP (rafaga contra muchos usuarios); el bloqueo por usuario vive en AuthService.
+    const ip = clientIp(req) ?? "desconocida";
+    const limite = loginLimiter.estado(ip);
+    if (limite.bloqueado) {
+      throw new TooManyRequestsError(
+        `Demasiados intentos fallidos desde esta dirección. Espere ${Math.ceil(limite.reintentarEnSeg / 60)} min antes de reintentar.`,
+        limite.reintentarEnSeg,
+      );
+    }
+    try {
+      const { token, sesion } = await authService.login(body.username, body.password, { ip: clientIp(req) });
+      loginLimiter.limpiar(ip);
+      reply.send({ data: { token, sesion } });
+    } catch (e) {
+      if (e instanceof UnauthorizedError) loginLimiter.registrarFallo(ip);
+      throw e;
+    }
   });
 
   app.post(
@@ -50,6 +71,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       if (typeof sub === "number") {
         await authService.logout(sub, { ip: clientIp(req) });
       }
+      // El token deja de valer YA (no hasta que expire).
+      if (req.auth?.jti !== undefined) revocarToken(req.auth.jti, req.auth.exp);
       reply.status(204).send();
     },
   );
@@ -57,12 +80,17 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   app.get("/api/auth/me", { preHandler: authGuard([]) }, async (req, reply) => {
     const sub = req.auth?.sub;
     if (typeof sub !== "number") {
-      throw new ValidationError("Token invalido");
+      throw new ValidationError("Token inválido");
     }
     reply.send({ data: await authService.me(sub) });
   });
 
+  // Selector de perfiles de DEMO: nunca en produccion (lista usernames a cualquiera).
   app.get("/api/auth/usuarios-demo", async (_req, reply) => {
+    if (env().nodeEnv === "production") {
+      reply.status(404).send({ error: { code: "NOT_FOUND", message: "No encontrado", details: [] } });
+      return;
+    }
     reply.send({ data: await authService.usuariosDemo() });
   });
 

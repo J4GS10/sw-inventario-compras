@@ -38,7 +38,7 @@ export function HistorialAprobacion(props: { idSolicitud: number }): React.React
   return (
     <div className="grid grid-cols-1 gap-2" style={{ borderTop: "1px solid var(--color-line)", paddingTop: 12 }}>
       <h4 className="text-[0.78rem] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-soft)" }}>
-        Historial de aprobacion
+        Historial de aprobación
       </h4>
       {rows === null ? (
         <p className="text-[0.8rem]" style={{ color: "var(--color-ink-faint)" }}>
@@ -46,7 +46,7 @@ export function HistorialAprobacion(props: { idSolicitud: number }): React.React
         </p>
       ) : rows.length === 0 ? (
         <p className="text-[0.8rem]" style={{ color: "var(--color-ink-faint)" }}>
-          Sin decisiones registradas todavia.
+          Sin decisiones registradas todavía.
         </p>
       ) : (
         <ul className="grid gap-1.5">

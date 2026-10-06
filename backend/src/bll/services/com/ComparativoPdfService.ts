@@ -59,13 +59,13 @@ export class ComparativoPdfService {
 
     pdf.keyValues([
       ["Proveedores", d.proveedoresParticipantes.map((p) => p.proveedor).join(", ") || "-"],
-      ["Lineas comparadas", String(d.lineas.length)],
+      ["Líneas comparadas", String(d.lineas.length)],
       ["Emitido", new Date().toLocaleString("es-GT")],
     ]);
 
     for (const linea of d.lineas) {
       pdf.sectionTitle(
-        `Linea ${linea.idSolicitudDetalle}  —  ${linea.descripcion}  (cantidad: ${linea.cantidadSolicitada})`,
+        `Línea ${linea.idSolicitudDetalle}  —  ${linea.descripcion}  (cantidad: ${linea.cantidadSolicitada})`,
       );
       pdf.table(
         [
@@ -107,7 +107,7 @@ export class ComparativoPdfService {
       }
     }
 
-    pdf.sectionTitle("Criterios de evaluacion del director");
+    pdf.sectionTitle("Criterios de evaluación del director");
     if (d.criterios.length === 0) {
       pdf.note("Sin criterios registrados para esta solicitud.");
     } else {
@@ -115,7 +115,7 @@ export class ComparativoPdfService {
         [
           { header: "Criterio", width: 120 },
           { header: "Proveedor", width: 150 },
-          { header: "Puntuacion", width: 55, align: "right" },
+          { header: "Puntuación", width: 55, align: "right" },
           { header: "Notas", width: 174 },
         ],
         d.criterios.map((c) => [

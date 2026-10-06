@@ -254,7 +254,17 @@ adjudicación). Sin pendientes de alcance; ver §6 para el backlog residual opci
 
 ## 5. Lo realizado en detalle (bloques, orden cronológico inverso)
 
-### 5.-36 Limpieza total de la base de datos + reseed con data de valor — 2026-09-12 (lo más reciente)
+### 5.-37 Coherencia de documentos, buscador real, orden "lo último primero" y resistencia — 2026-10-05
+
+Detalle completo, causas verificadas y resultados en `docs/11-ESTADO-Y-CONTINUIDAD.md`. Resumen:
+reglas de fecha/cantidad entre documentos (`bll/compras/reglasDocumentos.ts`, "hoy" en
+zona del negocio), límites del DDL generados (`pnpm --filter backend gen:limits`),
+buscador global `?q=` (`dal/repositories/searchSql.ts`) en todas las tablas, listados con
+`pk desc` por defecto + orden por encabezado en servidor, 503 reintentable / timeouts /
+`/health/ready` / limitador de login / `ErrorBoundary`. Backend 69 unit + 210 int, frontend
+35, QA UI 63/63, E2E de negocio 91/91.
+
+### 5.-36 Limpieza total de la base de datos + reseed con data de valor — 2026-09-12
 
 Pedido directo del usuario: *"necesito que borres toda la data de la db,
 necesito que hayan cotizaciones de valor, data de valor, para ver ya el

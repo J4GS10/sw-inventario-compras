@@ -20,12 +20,14 @@ export function auditContextOf(request: FastifyRequest): AuditContext {
     empleadoId?: number;
     roles?: readonly string[];
     requestId: string;
+    soloValidar?: boolean;
   } = {
     userId,
     permisos: request.auth?.permisos ?? [],
     requestId:
       (typeof request.id === "string" && request.id) || randomUUID(),
   };
+  if (request.method === "POST" && request.headers["x-solo-validar"] === "1") ctx.soloValidar = true;
   const empleadoId = request.auth?.empleadoId;
   if (typeof empleadoId === "number" && empleadoId > 0) {
     ctx.empleadoId = empleadoId;

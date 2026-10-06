@@ -13,6 +13,7 @@
  * detalle, columna VIRTUAL SUBTOTAL_CALCULADO tratada como solo lectura.
  */
 
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { Connection } from "oracledb";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
@@ -21,7 +22,7 @@ import {
   ValidationError,
   type ErrorDetail,
 } from "../../../common/errors/AppError.js";
-import type { PageQuery, Paginated } from "../../../common/types/Query.js";
+import { normalizePageQuery, type PageQuery, type Paginated } from "../../../common/types/Query.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type {
   OrdenCompra,
@@ -30,6 +31,15 @@ import type {
   SolicitudCompra,
 } from "../../../entities/com/models.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { aDia, formatoDia } from "../../../common/util/fechas.js";
+import {
+  ofertaVigente,
+  validarEntregaOrden,
+  validarLineasOrden,
+  validarTasaCambio,
+} from "../../compras/reglasDocumentos.js";
+import { repositoryFactory } from "../../../dal/repositories/RepositoryFactory.js";
 import type { WithDetails } from "../../../dal/contracts/IHeaderDetailRepository.js";
 import {
   ordenCompraRepository,
@@ -95,6 +105,7 @@ export class OrdenCompraService extends TransactionalService {
 
     return this.runInTransaction(async ({ conn, enqueueEvent }) => {
       const hoy = new Date().toISOString();
+      await this.validarContexto(input, conn);
       const fkProp = this.repo.detailForeignKeyProp();
       const lineasResueltas: Record<string, unknown>[] = [];
 
@@ -134,6 +145,7 @@ export class OrdenCompraService extends TransactionalService {
         "create",
       );
 
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       const created = (await this.repo.createWithDetails(
         cabecera,
         lineasResueltas,
@@ -200,12 +212,23 @@ export class OrdenCompraService extends TransactionalService {
       if (actual === null) throw new NotFoundError("COM_ORDEN_COMPRA", id);
       if (actual.estado !== "EMITIDA") {
         throw new BusinessRuleError(
-          `No se puede editar: la orden ya esta ${actual.estado.toLowerCase()}.`,
+          `No se puede editar: la orden ya está ${actual.estado.toLowerCase()}.`,
         );
       }
+      const reglas = new Validacion();
+      if (b["fechaEntregaEsperada"] !== undefined) {
+        // Cambiar la entrega: hoy o despues, y nunca antes de la propia emision de la orden.
+        validarEntregaOrden(reglas, b["fechaEntregaEsperada"], {
+          emision: aDia((actual as OrdenCompra & { fechaEmision?: unknown }).fechaEmision),
+        });
+      }
+      if (b["tasaCambio"] !== undefined) validarTasaCambio(reglas, b["tasaCambio"]);
+      if (b["idMoneda"] !== undefined) reglas.id("idMoneda", "La moneda", b["idMoneda"]);
+      reglas.lanzarSiHay("Orden de compra inválida");
+
       const patch: Record<string, unknown> = {};
       if (b["fechaEntregaEsperada"] !== undefined) {
-        patch["fechaEntregaEsperada"] = String(b["fechaEntregaEsperada"]);
+        patch["fechaEntregaEsperada"] = String(b["fechaEntregaEsperada"]).trim();
       }
       if (b["numeroReferencia"] !== undefined) {
         patch["numeroReferencia"] =
@@ -239,8 +262,8 @@ export class OrdenCompraService extends TransactionalService {
       if (actual === null) throw new NotFoundError("COM_ORDEN_COMPRA", id);
       if (!["EMITIDA", "CANCELADA", "RECHAZADA"].includes(actual.estado)) {
         throw new BusinessRuleError(
-          `No se puede eliminar: la orden esta ${actual.estado.toLowerCase()} ` +
-            "(ya tiene movimiento). Cancelala primero si aplica.",
+          `No se puede eliminar: la orden está ${actual.estado.toLowerCase()} ` +
+            "(ya tiene movimiento). Cancélala primero si aplica.",
         );
       }
       await this.repo.softDeleteWithDetails(id, ctx, conn);
@@ -249,6 +272,94 @@ export class OrdenCompraService extends TransactionalService {
   }
 
   // ------------------------------------------------------------------------
+
+  /**
+   * Reglas que necesitan leer la base: la entrega no puede ser anterior a la
+   * solicitud de origen, el proveedor debe estar activo y cada oferta
+   * referenciada debe estar adjudicada, ser de ESE proveedor y seguir vigente.
+   */
+  private async validarContexto(input: CrearOrdenInput, conn: Connection): Promise<void> {
+    const reglas = new Validacion();
+
+    let diaSolicitud: string | null = null;
+    if (input.idSolicitud !== undefined) {
+      const sol = (await this.solicitudRepo.findById(input.idSolicitud, conn)) as
+        | (SolicitudCompra & { fechaCreacion?: unknown })
+        | null;
+      if (sol === null) throw new NotFoundError("COM_SOLICITUD_COMPRA", input.idSolicitud);
+      diaSolicitud = aDia(sol.fechaCreacion);
+    }
+    validarEntregaOrden(reglas, input.fechaEntregaEsperada, { solicitud: diaSolicitud });
+    reglas.lanzarSiHay("Fecha de entrega inválida");
+
+    const proveedor = (await repositoryFactory()
+      .get<{ razonSocial: string; estado: string | null }, object, object>("proveedor")
+      .findById(input.idProveedor, conn)) as { razonSocial: string; estado: string | null } | null;
+    if (proveedor === null) throw new NotFoundError("COM_PROVEEDOR", input.idProveedor);
+    if (proveedor.estado === "I") {
+      throw new BusinessRuleError(
+        `El proveedor ${proveedor.razonSocial} está inactivo; no se le pueden emitir órdenes.`,
+      );
+    }
+
+    const detalleRepo = repositoryFactory().get<
+      { idCotizacion: number; adjudicado: boolean },
+      object,
+      object
+    >("cotizacionDetalle");
+    // Bloquea las lineas de oferta (en orden de id: sin interbloqueos) y verifica que
+    // ninguna este ya consumida por otra orden viva. Sin el bloqueo, dos usuarios
+    // emitian simultaneamente la misma oferta dos veces.
+    const ocLineaRepo = repositoryFactory().get<
+      { idOrdenCompra: number; idCotizacionDetalle: number | null },
+      object,
+      object
+    >("ordenCompraDetalle");
+    const ids = input.lineas
+      .map((l) => l.idCotizacionDetalle)
+      .filter((x): x is number => x !== undefined)
+      .sort((a, b) => a - b);
+    for (const idCd of ids) {
+      await detalleRepo.lockById(idCd, conn);
+      const usos = await ocLineaRepo.findAll(
+        normalizePageQuery({ page: 1, pageSize: 50, filters: [{ prop: "idCotizacionDetalle", operator: "eq", value: idCd }] }),
+        conn,
+      );
+      for (const u of usos.data) {
+        const oc = (await this.repo.findById(u.idOrdenCompra, conn)) as OrdenCompra | null;
+        if (oc !== null && oc.estado !== "CANCELADA" && oc.estado !== "RECHAZADA") {
+          throw new BusinessRuleError(
+            `La oferta ${idCd} ya está en la orden de compra OC-${u.idOrdenCompra}; una oferta adjudicada se emite una sola vez.`,
+          );
+        }
+      }
+    }
+    const cotRepo = repositoryFactory().get<
+      { idProveedor: number; fechaVencimiento: unknown },
+      object,
+      object
+    >("cotizacionProveedor");
+    for (const [i, linea] of input.lineas.entries()) {
+      if (linea.idCotizacionDetalle === undefined) continue;
+      const det = await detalleRepo.findById(linea.idCotizacionDetalle, conn);
+      if (det === null) {
+        throw new NotFoundError("COM_COTIZACION_DETALLE", linea.idCotizacionDetalle);
+      }
+      const cot = await cotRepo.findById(det.idCotizacion, conn);
+      if (cot !== null && cot.idProveedor !== input.idProveedor) {
+        throw new BusinessRuleError(
+          `Línea ${i + 1}: la oferta ${linea.idCotizacionDetalle} es de otro proveedor, no del de esta orden.`,
+        );
+      }
+      const vence = cot === null ? null : aDia(cot.fechaVencimiento);
+      if (!ofertaVigente(vence)) {
+        throw new BusinessRuleError(
+          `Línea ${i + 1}: la oferta ${linea.idCotizacionDetalle} venció el ${formatoDia(vence ?? "")}; ` +
+            "pida al proveedor una cotización vigente antes de emitir la orden.",
+        );
+      }
+    }
+  }
 
   private async resolverPrecio(
     input: CrearOrdenInput,
@@ -293,7 +404,7 @@ export class OrdenCompraService extends TransactionalService {
     } catch (e) {
       if (e instanceof BusinessRuleError) {
         throw new ValidationError(
-          `Linea ${indice + 1}: ${e.message}`,
+          `Línea ${indice + 1}: ${e.message}`,
           [{ field: `lineas[${indice}].precioUnitario`, message: "no resuelto" }],
         );
       }
@@ -327,39 +438,39 @@ export class OrdenCompraService extends TransactionalService {
       throw new ValidationError("El cuerpo debe ser un objeto");
     }
     const b = body as Record<string, unknown>;
-    const details: ErrorDetail[] = [];
-    const numRequired = (key: string): number => {
-      const v = Number(b[key]);
-      if (!Number.isFinite(v)) details.push({ field: key, message: "requerido" });
-      return v;
-    };
-    const idProveedor = numRequired("idProveedor");
-    const idEmpleadoGerenteFinanciero = numRequired("idEmpleadoGerenteFinanciero");
-    const idMoneda = numRequired("idMoneda");
-    const tasaCambio = numRequired("tasaCambio");
-    const fechaEntregaEsperada = String(b["fechaEntregaEsperada"] ?? "");
-    if (fechaEntregaEsperada === "") {
-      details.push({ field: "fechaEntregaEsperada", message: "requerido" });
-    }
-    const lineasRaw = Array.isArray(b["lineas"]) ? b["lineas"] : [];
-    if (lineasRaw.length === 0) {
-      details.push({ field: "lineas", message: "al menos una linea" });
-    }
-    if (details.length > 0) {
-      throw new ValidationError("Datos de orden de compra invalidos", details);
-    }
+    const lineasRaw = Array.isArray(b["lineas"]) ? (b["lineas"] as unknown[]) : [];
+    const lineasObj = lineasRaw.map((l) =>
+      l !== null && typeof l === "object" ? (l as Record<string, unknown>) : {},
+    );
 
-    const lineas: LineaInput[] = lineasRaw.map((raw, i) => {
-      const l = raw as Record<string, unknown>;
-      const descripcion = String(l["descripcion"] ?? "");
-      const cantidad = Number(l["cantidad"]);
-      const idUnidadMedida = Number(l["idUnidadMedida"]);
-      if (descripcion === "" || !Number.isFinite(cantidad) || !Number.isInteger(idUnidadMedida)) {
-        throw new ValidationError(`Linea ${i + 1} incompleta`, [
-          { field: `lineas[${i}]`, message: "descripcion, cantidad e idUnidadMedida son obligatorios" },
-        ]);
-      }
-      const out: LineaInput = { descripcion, cantidad, idUnidadMedida };
+    const v = new Validacion();
+    const idProveedor = v.id("idProveedor", "El proveedor", b["idProveedor"]);
+    const idEmpleadoGerenteFinanciero = v.id(
+      "idEmpleadoGerenteFinanciero",
+      "El gerente financiero",
+      b["idEmpleadoGerenteFinanciero"],
+    );
+    const idMoneda = v.id("idMoneda", "La moneda", b["idMoneda"]);
+    const tasaCambio = validarTasaCambio(v, b["tasaCambio"]);
+    if (typeof b["fechaEntregaEsperada"] !== "string" || b["fechaEntregaEsperada"].trim() === "") {
+      v.error("fechaEntregaEsperada", "La fecha de entrega esperada es obligatoria");
+    }
+    if (typeof b["numeroReferencia"] === "string" && b["numeroReferencia"].trim().length > 50) {
+      v.error("numeroReferencia", "El número de referencia no puede superar 50 caracteres");
+    }
+    validarLineasOrden(v, lineasObj);
+    lineasObj.forEach((l, i) => {
+      v.texto(`lineas[${i}].descripcion`, `Línea ${i + 1}: la descripción`, l["descripcion"], { max: 255 });
+      v.id(`lineas[${i}].idUnidadMedida`, `Línea ${i + 1}: la unidad de medida`, l["idUnidadMedida"]);
+    });
+    v.lanzarSiHay("Orden de compra inválida");
+
+    const lineas: LineaInput[] = lineasObj.map((l) => {
+      const out: LineaInput = {
+        descripcion: String(l["descripcion"]).trim(),
+        cantidad: Number(l["cantidad"]),
+        idUnidadMedida: Number(l["idUnidadMedida"]),
+      };
       const opt: Partial<Record<keyof LineaInput, number | null>> = {};
       if (l["idArticulo"] !== undefined && l["idArticulo"] !== null) opt.idArticulo = Number(l["idArticulo"]);
       if (l["idCotizacionDetalle"] !== undefined) opt.idCotizacionDetalle = Number(l["idCotizacionDetalle"]);
@@ -371,16 +482,20 @@ export class OrdenCompraService extends TransactionalService {
     });
 
     const result: CrearOrdenInput = {
-      idProveedor,
-      idEmpleadoGerenteFinanciero,
-      idMoneda,
-      tasaCambio,
-      fechaEntregaEsperada,
+      idProveedor: idProveedor as number,
+      idEmpleadoGerenteFinanciero: idEmpleadoGerenteFinanciero as number,
+      idMoneda: idMoneda as number,
+      tasaCambio: tasaCambio as number,
+      fechaEntregaEsperada: String(b["fechaEntregaEsperada"]).trim(),
       lineas,
     };
     const extra: { numeroReferencia?: string; idSolicitud?: number } = {};
-    if (typeof b["numeroReferencia"] === "string") extra.numeroReferencia = b["numeroReferencia"];
-    if (b["idSolicitud"] !== undefined) extra.idSolicitud = Number(b["idSolicitud"]);
+    if (typeof b["numeroReferencia"] === "string" && b["numeroReferencia"].trim() !== "") {
+      extra.numeroReferencia = b["numeroReferencia"].trim();
+    }
+    if (b["idSolicitud"] !== undefined && b["idSolicitud"] !== null) {
+      extra.idSolicitud = Number(b["idSolicitud"]);
+    }
     return { ...result, ...extra };
   }
 
@@ -393,7 +508,7 @@ export class OrdenCompraService extends TransactionalService {
       .find((c) => c.prop === "estado")
       ?.enumValues?.includes(estado);
     if (valido !== true) {
-      throw new ValidationError("Estado de orden de compra invalido", [
+      throw new ValidationError("Estado de orden de compra inválido", [
         { field: "estado", message: "valor no permitido" },
       ]);
     }

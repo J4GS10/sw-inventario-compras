@@ -30,6 +30,14 @@ interface Preview {
   revoke: () => void;
 }
 
+const SUGERENCIA_ADJUNTO: Record<TipoDocAdjunto, string> = {
+  solicitudes: "Puedes adjuntar especificaciones, cotizaciones de referencia o autorizaciones.",
+  cotizaciones: "Sube el PDF de la cotización del proveedor.",
+  "ordenes-compra": "Sube la orden firmada o la confirmación del proveedor.",
+  recepciones: "Adjunta la guía de remisión o fotos de la mercadería recibida.",
+  devoluciones: "Adjunta fotos o el acta de la mercadería devuelta.",
+};
+
 export function AdjuntosPanel(props: {
   tipo: TipoDocAdjunto;
   id: number;
@@ -154,7 +162,7 @@ export function AdjuntosPanel(props: {
         </p>
       ) : items.length === 0 ? (
         <p className="text-[0.8rem]" style={{ color: "var(--color-ink-faint)" }}>
-          Sin archivos adjuntos. {canWrite ? "Sube el PDF de la cotizacion del proveedor." : ""}
+          Sin archivos adjuntos. {canWrite ? SUGERENCIA_ADJUNTO[tipo] : ""}
         </p>
       ) : (
         <ul className="grid gap-1">

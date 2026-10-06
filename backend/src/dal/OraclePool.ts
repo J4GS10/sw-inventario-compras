@@ -18,6 +18,12 @@ oracledb.autoCommit = false;
 oracledb.fetchAsString = [oracledb.CLOB];
 oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
 
+/** Tiempo maximo de una sentencia contra Oracle (ms). Configurable con DB_CALL_TIMEOUT_MS. */
+const CALL_TIMEOUT_MS = (() => {
+  const n = Number.parseInt(process.env["DB_CALL_TIMEOUT_MS"] ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 30_000;
+})();
+
 export class OraclePool {
   private static instance: OraclePool | undefined;
 
@@ -44,6 +50,14 @@ export class OraclePool {
       poolMax: cfg.poolMax,
       poolIncrement: cfg.poolIncrement,
       poolTimeout: cfg.poolTimeout,
+      // Valida la conexion cuando lleva >30 s ociosa: tras un corte de red o un
+      // reinicio de Oracle no se entrega al request una conexion muerta.
+      poolPingInterval: 30,
+      // Si el pool esta saturado, el request espera 15 s y falla con NJS-040
+      // (-> 503 reintentable) en vez de colgarse sin limite.
+      queueTimeout: 15_000,
+      queueMax: 200,
+      stmtCacheSize: 50,
       poolAlias: "default",
     });
     logger().info("Pool de Oracle inicializado", {
@@ -51,6 +65,31 @@ export class OraclePool {
       poolMin: cfg.poolMin,
       poolMax: cfg.poolMax,
     });
+  }
+
+  /** Round-trip real a Oracle (readiness). Lanza si la BD no responde en `timeoutMs`. */
+  public async ping(timeoutMs = 3000): Promise<void> {
+    const conn = await this.getPool().getConnection();
+    try {
+      conn.callTimeout = timeoutMs;
+      await conn.execute("SELECT 1 FROM DUAL");
+    } finally {
+      try {
+        await conn.close();
+      } catch {
+        /* la conexion ya estaba rota: el pool la descarta */
+      }
+    }
+  }
+
+  /** Foto del pool para /health/ready y diagnostico. */
+  public stats(): { open: number; inUse: number; max: number } | null {
+    if (this.pool === undefined) return null;
+    return {
+      open: this.pool.connectionsOpen,
+      inUse: this.pool.connectionsInUse,
+      max: this.pool.poolMax,
+    };
   }
 
   public async close(): Promise<void> {
@@ -82,13 +121,15 @@ export class OraclePool {
       return fn(existing);
     }
     const conn = await this.getPool().getConnection();
+    // Ninguna sentencia puede colgar un request mas de 30 s (consulta runaway, bloqueo).
+    conn.callTimeout = CALL_TIMEOUT_MS;
     try {
       return await fn(conn);
     } finally {
       try {
         await conn.close();
       } catch (closeError) {
-        logger().warn("Fallo al liberar conexion al pool", {
+        logger().warn("Fallo al liberar conexión al pool", {
           reason:
             closeError instanceof Error
               ? closeError.message
@@ -112,6 +153,7 @@ export class OraclePool {
       return fn(existing);
     }
     const conn = await this.getPool().getConnection();
+    conn.callTimeout = CALL_TIMEOUT_MS;
     try {
       const result = await fn(conn);
       await conn.commit();
@@ -132,7 +174,7 @@ export class OraclePool {
       try {
         await conn.close();
       } catch (closeError) {
-        logger().warn("Fallo al liberar conexion transaccional al pool", {
+        logger().warn("Fallo al liberar conexión transaccional al pool", {
           reason:
             closeError instanceof Error
               ? closeError.message

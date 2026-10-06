@@ -8,7 +8,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { http } from "../core/HttpClient.js";
 import { FIELD_KINDS } from "../ui/fieldKinds.js";
-import type { FieldDef, FieldValue, SelectOption } from "../ui/Field.js";
+import { dateBounds, fieldError, type FieldDef, type FieldValue, type SelectOption } from "../ui/Field.js";
 
 export interface RemoteOptions {
   /** Ruta del endpoint. Puede llevar placeholders `{campo}` (select dependiente). */
@@ -27,7 +27,39 @@ export interface RemoteOptions {
   readonly pick?: string;
 }
 
+/**
+ * Siembra de LINEAS: al elegir un valor de cabecera se traen las lineas que el
+ * sistema ya conoce y se arman solas (p. ej. al elegir el RFQ, un renglon por cada
+ * articulo que se pidio: el usuario solo teclea el precio).
+ */
+export interface LineSeedSpec {
+  /** Campo de cabecera que dispara la siembra. */
+  readonly when: string;
+  /** Endpoint con las filas; admite placeholders `{campo}` de la cabecera. */
+  readonly source: string;
+  /** `linea[campo] = fila[prop]`. */
+  readonly map: Readonly<Record<string, string>>;
+  /** Ruta (con puntos) al array dentro de la respuesta. */
+  readonly pick?: string;
+  /** Maximo de lineas sembradas. */
+  readonly limit?: number;
+}
+
 export interface FormFieldDef extends FieldDef {
+  /** Valor inicial fijo (o calculado). */
+  readonly defaultValue?: string | (() => string);
+  /** Fecha inicial = hoy + N dias (campos `date` / `datetime`). */
+  readonly defaultDays?: number;
+  /** Recuerda lo ultimo que ESTE usuario eligio aqui y lo propone la proxima vez. */
+  readonly remember?: boolean;
+  /** Campo secundario: se agrupa en "Más datos (opcional)" y no estorba en la captura. */
+  readonly advanced?: boolean;
+  /**
+   * Al elegir una opcion, copia `opcion.data[prop]` a OTROS campos del mismo ambito
+   * (cabecera o linea): `{ campoDestino: propDeLaFila }`. Solo si el destino esta vacio
+   * o conserva un valor que el propio sistema puso antes.
+   */
+  readonly fillOnSelect?: Readonly<Record<string, string>>;
   readonly optionsFrom?: RemoteOptions;
   /** Catalogo estatico (lista fija de opciones). */
   readonly optionsStatic?: readonly SelectOption[];
@@ -44,14 +76,14 @@ const DEPENDS_LABEL: Record<string, string> = {
   idRfq: "el RFQ",
   idSolicitud: "la solicitud",
   idOrdenCompra: "la orden de compra",
-  idRecepcion: "la recepcion",
+  idRecepcion: "la recepción",
   idProveedor: "el proveedor",
 };
 
 type Row = Record<string, unknown>;
 type Values = Record<string, FieldValue>;
 
-function fillPlaceholders(path: string, values: Values): string | null {
+export function fillPlaceholders(path: string, values: Values): string | null {
   let ok = true;
   const filled = path.replace(/\{(\w+)\}/g, (_m, key: string) => {
     const v = values[key];
@@ -64,7 +96,7 @@ function fillPlaceholders(path: string, values: Values): string | null {
   return ok ? filled : null;
 }
 
-function getByPath(obj: unknown, dotted: string): unknown {
+export function getByPath(obj: unknown, dotted: string): unknown {
   return dotted.split(".").reduce<unknown>((acc, k) => {
     if (acc !== null && typeof acc === "object" && k in acc) {
       return (acc as Record<string, unknown>)[k];
@@ -140,6 +172,7 @@ export function useOptions(
           updates[name] = rows.map((row) => ({
             value: String(row[src.value]),
             label: buildLabel(row, src),
+            data: row,
           }));
         } catch {
           updates[name] = [];
@@ -205,25 +238,74 @@ export function toPayload(
   return out;
 }
 
+/** Error por superar el tope que impone la fila elegida en otro campo (`limitFrom`); null si cumple o no aplica. */
+export function limiteError(
+  f: FieldDef,
+  values: Values,
+  opts: Readonly<Record<string, readonly SelectOption[]>>,
+): string | null {
+  const lim = f.limitFrom;
+  if (lim === undefined) return null;
+  const n = Number(values[f.name]);
+  if (!Number.isFinite(n) || String(values[f.name] ?? "").trim() === "") return null;
+  const fila = (opts[lim.select] ?? []).find((o) => o.value === String(values[lim.select] ?? ""));
+  const max = Number((fila?.data as Record<string, unknown> | undefined)?.[lim.prop]);
+  if (!Number.isFinite(max) || n <= max) return null;
+  return `No puede superar lo ${lim.noun} (${max})`;
+}
+
 export function firstError(
   fields: readonly FormFieldDef[],
   values: Values,
 ): string | null {
   for (const f of fields) {
     if (f.kind === "switch") continue;
-    const err = FIELD_KINDS[f.kind].validate?.(
-      String(values[f.name] ?? ""),
-      f.required ?? false,
-    );
+    const err = fieldError(f, String(values[f.name] ?? ""), dateBounds(f, values));
     if (err != null) return `${f.label}: ${err}`;
   }
   return null;
 }
 
+/** Hoy + n dias en hora local, como YYYY-MM-DD. */
+export function diaLocal(n: number): string {
+  return new Date(Date.now() + n * 864e5).toLocaleDateString("en-CA");
+}
+
+/** Valor inicial de un campo: el que ya "sabe" el sistema, no un vacio. */
+export function valorInicial(f: FormFieldDef): FieldValue {
+  if (f.kind === "switch") return f.defaultValue === undefined ? false : f.defaultValue === "true";
+  if (f.defaultValue !== undefined) return typeof f.defaultValue === "function" ? f.defaultValue() : f.defaultValue;
+  if (f.defaultDays !== undefined && (f.kind === "date" || f.kind === "datetime")) {
+    return f.kind === "datetime" ? `${diaLocal(f.defaultDays)}T12:00` : diaLocal(f.defaultDays);
+  }
+  return "";
+}
+
 export function blankValues(fields: readonly FormFieldDef[]): Values {
   const v: Values = {};
-  for (const f of fields) v[f.name] = f.kind === "switch" ? false : "";
+  for (const f of fields) v[f.name] = valorInicial(f);
   return v;
+}
+
+/* ---- Memoria de lo ultimo elegido (por usuario y formulario) ------------- */
+
+const claveRecordada = (userId: number, form: string): string => `erp.recientes.${userId}.${form}`;
+
+export function leerRecordados(userId: number, form: string): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(claveRecordada(userId, form));
+    return raw === null ? {} : (JSON.parse(raw) as Record<string, string>);
+  } catch {
+    return {};
+  }
+}
+
+export function guardarRecordados(userId: number, form: string, valores: Record<string, string>): void {
+  try {
+    window.localStorage.setItem(claveRecordada(userId, form), JSON.stringify(valores));
+  } catch {
+    /* almacenamiento bloqueado: simplemente no se recuerda */
+  }
 }
 
 /* -------------------------------------------------------------------------- *
@@ -355,4 +437,138 @@ export function useAutoFill(
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec, rows, matchValues]);
+}
+
+// ---------------------------------------------------------------------------
+// Pegar renglones desde Excel / una hoja de calculo
+// ---------------------------------------------------------------------------
+
+const norm = (t: string): string =>
+  t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+const esNumero = (t: string): boolean => /^-?\d{1,3}(?:[,.\s]\d{3})*(?:[.,]\d+)?$|^-?\d+(?:[.,]\d+)?$/.test(t.trim());
+function aNumero(t: string): string {
+  const s = t.trim().replace(/\s/g, "");
+  // 1.234,50 (es) o 1,234.50 (en): el ultimo separador es el decimal
+  const ultimaComa = s.lastIndexOf(",");
+  const ultimoPunto = s.lastIndexOf(".");
+  if (ultimaComa > ultimoPunto) return s.replace(/\./g, "").replace(",", ".");
+  return s.replace(/,/g, "");
+}
+const NUMERICOS = new Set(["quantity", "money", "integer", "percent", "rate"]);
+
+function opcionPara(texto: string, opciones: readonly SelectOption[]): SelectOption | undefined {
+  const n = norm(texto);
+  if (n === "") return undefined;
+  return (
+    opciones.find((o) => o.value === texto.trim() || norm(o.label) === n) ??
+    opciones.find((o) => norm(o.label).includes(n)) ??
+    opciones.find((o) => {
+      const cod = norm(o.label).split(/[\s·-]/)[0] ?? "";
+      return cod.length >= 3 && n.startsWith(cod);
+    })
+  );
+}
+
+export interface ResultadoPegado {
+  readonly lineas: Values[];
+  /** Filas o celdas que no se pudieron interpretar (se muestran al usuario, nada se descarta en silencio). */
+  readonly avisos: string[];
+}
+
+/**
+ * Convierte texto copiado de una hoja de calculo (columnas con tabulador, o `;`) en renglones del formulario.
+ * Con fila de encabezado se asocia por nombre de columna; sin ella, cada celda va al siguiente campo que le
+ * corresponde por tipo (numero -> cantidad/monto; texto -> lista que lo reconozca o campo de texto).
+ */
+export function parsearPegado(
+  texto: string,
+  campos: readonly FormFieldDef[],
+  opciones: Readonly<Record<string, readonly SelectOption[]>>,
+  max = 200,
+): ResultadoPegado {
+  const avisos: string[] = [];
+  const filas = texto
+    .split(/\r?\n/)
+    .filter((l) => l.trim() !== "")
+    .map((l) => (l.includes("\t") ? l.split("\t") : l.includes(";") ? l.split(";") : l.split(",")).map((c) => c.trim()));
+  if (filas.length === 0) return { lineas: [], avisos };
+
+  const usables = campos.filter((f) => f.kind !== "switch" && f.disabled !== true);
+  let cuerpo = filas;
+  let porEncabezado: (FormFieldDef | undefined)[] | null = null;
+  const cab = filas[0]!.map((c) => {
+    const n = norm(c);
+    return usables.find((f) => norm(f.label) === n || norm(f.name) === n || (n === "codigo" && f.name === "idArticulo"));
+  });
+  if (cab.filter((x) => x !== undefined).length >= 2 || (cab.some((x) => x !== undefined) && filas[0]!.every((c) => !esNumero(c)))) {
+    porEncabezado = cab;
+    cuerpo = filas.slice(1);
+  }
+
+  const lineas: Values[] = [];
+  const poner = (l: Values, f: FormFieldDef, celda: string, fila: number): void => {
+    if (celda === "") return;
+    if (f.kind === "select") {
+      const op = opcionPara(celda, opciones[f.name] ?? f.options ?? []);
+      if (op === undefined) {
+        avisos.push(`Fila ${fila}: «${celda}» no coincide con ${f.label.toLowerCase()}`);
+        return;
+      }
+      l[f.name] = op.value;
+      for (const [destino, prop] of Object.entries(f.fillOnSelect ?? {})) {
+        const v = op.data?.[prop];
+        if (v !== undefined && v !== null && String(l[destino] ?? "") === "") l[destino] = String(v);
+      }
+    } else if (NUMERICOS.has(f.kind)) {
+      l[f.name] = esNumero(celda) ? aNumero(celda) : celda;
+    } else if (f.kind === "date" || f.kind === "datetime") {
+      const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(celda);
+      l[f.name] = m !== null ? `${m[3]}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}` : celda;
+    } else {
+      l[f.name] = celda;
+    }
+  };
+
+  cuerpo.slice(0, max).forEach((celdas, i) => {
+    const l = blankValues(campos);
+    const fila = i + 1 + (porEncabezado !== null ? 1 : 0);
+    if (porEncabezado !== null) {
+      celdas.forEach((c, j) => {
+        const f = porEncabezado![j];
+        if (f !== undefined) poner(l, f, c, fila);
+      });
+    } else {
+      const libres = [...usables];
+      const tomar = (pred: (f: FormFieldDef) => boolean): FormFieldDef | undefined => {
+        const k = libres.findIndex(pred);
+        return k < 0 ? undefined : libres.splice(k, 1)[0];
+      };
+      for (const c of celdas) {
+        if (c === "") continue;
+        if (esNumero(c)) {
+          const f = tomar((x) => NUMERICOS.has(x.kind));
+          if (f !== undefined) poner(l, f, c, fila);
+          continue;
+        }
+        const sel = libres.find(
+          (x) => x.kind === "select" && opcionPara(c, opciones[x.name] ?? x.options ?? []) !== undefined,
+        );
+        if (sel !== undefined) {
+          libres.splice(libres.indexOf(sel), 1);
+          poner(l, sel, c, fila);
+          continue;
+        }
+        const t = tomar((x) => x.kind !== "select" && !NUMERICOS.has(x.kind));
+        if (t !== undefined) poner(l, t, c, fila);
+        else avisos.push(`Fila ${fila}: sobra «${c}»`);
+      }
+    }
+    lineas.push(l);
+  });
+  if (cuerpo.length > max) avisos.push(`Solo se tomaron las primeras ${max} filas`);
+  return { lineas, avisos };
 }

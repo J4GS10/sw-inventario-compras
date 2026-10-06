@@ -25,7 +25,7 @@ import type { SelectOption } from "../../ui/Field.js";
 import type { HelpContent } from "../../ui/HelpTip.js";
 
 const AYUDA_COMPARATIVO: HelpContent = {
-  title: "Comparativo de cotizaciones — como funciona",
+  title: "Comparativo de cotizaciones — cómo funciona",
   body: (
     <>
       <p>
@@ -76,7 +76,7 @@ export default function ComparativoView(props: {
   const cargar = useCallback(async (): Promise<void> => {
     const id = Number.parseInt(idSolicitud, 10);
     if (!Number.isInteger(id) || id <= 0) {
-      toast.error("Ingrese un id de solicitud valido");
+      toast.error("Ingrese un id de solicitud válido");
       return;
     }
     setLoading(true);
@@ -110,11 +110,54 @@ export default function ComparativoView(props: {
 
   const [toAdjudicar, setToAdjudicar] = useState<{ id: number; proveedor: string; detalle: string } | null>(null);
 
+  // Sugerencia del SERVIDOR por renglon aun sin adjudicar: pondera precio (60 %), confiabilidad historica del
+  // proveedor (25 %) y credito (15 %); nunca sugiere una oferta >15 % mas cara que la mas barata.
+  interface SugerenciaDTO {
+    renglones: {
+      idSolicitudDetalle: number;
+      descripcion: string;
+      motivo: string;
+      sugerida: { idCotizacionDetalle: number; proveedor: string; puntaje: number; precioNetoMoneda: number } | null;
+    }[];
+  }
+  const [sugerencia, setSugerencia] = useState<SugerenciaDTO | null>(null);
+  useEffect(() => {
+    setSugerencia(null);
+    if (comp === null || !hasPerm(Permisos.COTIZACION_ADJUDICAR)) return;
+    let vivo = true;
+    void http
+      .get<SugerenciaDTO>(`/api/com/comparativo/solicitud/${comp.idSolicitud}/sugerencia`)
+      .then((r) => vivo && setSugerencia(r))
+      .catch(() => vivo && setSugerencia(null));
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comp]);
+  const sugeridas = useMemo(
+    () => (sugerencia?.renglones ?? []).flatMap((r) => (r.sugerida === null ? [] : [{ linea: r, cz: r.sugerida }])),
+    [sugerencia],
+  );
+  const [confirmaSugeridas, setConfirmaSugeridas] = useState(false);
+  async function adjudicarSugeridas(): Promise<void> {
+    let hechas = 0;
+    try {
+      for (const { cz } of sugeridas) {
+        await comparativoService.adjudicar(cz.idCotizacionDetalle);
+        hechas++;
+      }
+      toast.success(`${hechas} renglón${hechas === 1 ? "" : "es"} adjudicado${hechas === 1 ? "" : "s"} según la sugerencia — ya puedes generar la Orden de Compra`);
+    } catch (e: unknown) {
+      toast.error(`Se adjudicaron ${hechas} de ${sugeridas.length}. ${messageOf(e)}`);
+    }
+    await cargar();
+  }
+
   async function adjudicar(id: number): Promise<void> {
     try {
       await comparativoService.adjudicar(id);
       toast.success(
-        "Cotizacion adjudicada — cuando termines todas las lineas, le toca al Departamento de Compras generar la Orden de Compra",
+        "Cotización adjudicada — cuando termines todas las líneas, le toca al Departamento de Compras generar la Orden de Compra",
       );
       await cargar();
     } catch (e: unknown) {
@@ -158,7 +201,7 @@ export default function ComparativoView(props: {
     if (comp === null) return;
     const idDet = Number(form["idCotizacionDetalle"]);
     if (!Number.isInteger(idDet) || String(form["criterio"]).trim() === "") {
-      toast.error("Elija una cotizacion y escriba el criterio");
+      toast.error("Elija una cotización y escriba el criterio");
       return;
     }
     try {
@@ -181,7 +224,7 @@ export default function ComparativoView(props: {
     comp?.lineas.flatMap((l) =>
       l.cotizaciones.map((cz) => ({
         value: String(cz.idCotizacionDetalle),
-        label: `Linea ${l.idSolicitudDetalle} · ${cz.proveedor} · ${cz.monedaCodigo} ${money(cz.precioNeto)}`,
+        label: `Línea ${l.idSolicitudDetalle} · ${cz.proveedor} · ${cz.monedaCodigo} ${money(cz.precioNeto)}`,
       })),
     ) ?? [];
 
@@ -221,11 +264,16 @@ export default function ComparativoView(props: {
     <div className="grid grid-cols-1 gap-4">
       <PageHeader
         title="Comparativo de cotizaciones"
-        subtitle="Decision de compra trazada: ofertas lado a lado, criterios del director y exportacion a PDF."
+        subtitle="Decisión de compra trazada: ofertas lado a lado, criterios del director y exportación a PDF."
         help={AYUDA_COMPARATIVO}
         actions={
           comp !== null ? (
             <div className="flex flex-wrap items-center gap-1.5">
+              {sugeridas.length > 0 && hasPerm(Permisos.COTIZACION_ADJUDICAR) && (
+                <Button variant="secondary" icon="zap" onClick={() => setConfirmaSugeridas(true)}>
+                  Adjudicar lo sugerido ({sugeridas.length})
+                </Button>
+              )}
               {adjudicadas.length > 0 && hasPerm(Permisos.OC_GESTIONAR) && (
                 <Button icon="cart" onClick={() => setOcOpen(true)}>
                   Generar orden de compra
@@ -289,7 +337,7 @@ export default function ComparativoView(props: {
           </div>
 
           <p className="text-[0.78rem]" style={{ color: "var(--color-ink-soft)" }}>
-            Cada tabla compara las ofertas de <strong>una linea</strong> de la solicitud.
+            Cada tabla compara las ofertas de <strong>una línea</strong> de la solicitud.
             <span className="mx-1" style={{ color: "var(--color-brand-ink)" }}>■</span>fondo azul = mejor precio ·
             <span className="mx-1" style={{ color: "var(--color-success)" }}>■</span>fondo verde = adjudicada ·
             <strong> P. neto</strong> = precio unitario × (1 − descuento);
@@ -303,7 +351,7 @@ export default function ComparativoView(props: {
             <Card key={linea.idSolicitudDetalle} pad={false}>
               <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-line)" }}>
                 <span className="font-semibold" style={{ color: "var(--color-heading)" }}>
-                  Linea {linea.idSolicitudDetalle}
+                  Línea {linea.idSolicitudDetalle}
                 </span>{" "}
                 — {linea.descripcion}{" "}
                 <span className="text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
@@ -331,7 +379,7 @@ export default function ComparativoView(props: {
                         Neto Q
                       </th>
                       <th className="num">Total</th>
-                      <th className="num" title="Dias de la condicion de pago">
+                      <th className="num" title="Días de la condición de pago">
                         Pago
                       </th>
                       <th>Marcas</th>
@@ -376,7 +424,7 @@ export default function ComparativoView(props: {
                               size="sm"
                               variant="ghost"
                               icon="clipboard"
-                              title="Ver PDF de referencia de esta cotizacion"
+                              title="Ver PDF de referencia de esta cotización"
                               onClick={() => setVerPdfDe({ idCotizacion: cz.idCotizacion, proveedor: cz.proveedor })}
                             >
                               PDF
@@ -410,10 +458,10 @@ export default function ComparativoView(props: {
 
           <Card>
             <h3 className="mb-3" style={{ color: "var(--color-heading)" }}>
-              Criterios de evaluacion del director
+              Criterios de evaluación del director
             </h3>
             {comp.criterios.length === 0 ? (
-              <EmptyState icon="award" title="Aun no se registran criterios" />
+              <EmptyState icon="award" title="Aún no se registran criterios" />
             ) : (
               <div className="overflow-x-auto">
                 <table className="data-table" style={{ tableLayout: "auto" }}>
@@ -421,7 +469,7 @@ export default function ComparativoView(props: {
                     <tr>
                       <th>Criterio</th>
                       <th>Proveedor</th>
-                      <th className="num">Puntuacion</th>
+                      <th className="num">Puntuación</th>
                       <th>Notas</th>
                     </tr>
                   </thead>
@@ -445,7 +493,7 @@ export default function ComparativoView(props: {
                   <Field
                     def={{
                       name: "idCotizacionDetalle",
-                      label: "Cotizacion",
+                      label: "Cotización",
                       kind: "select",
                       required: true,
                       options: opcionesCotizacion,
@@ -465,7 +513,7 @@ export default function ComparativoView(props: {
                     onChange={(v) => setForm((p) => ({ ...p, criterio: v }))}
                   />
                   <Field
-                    def={{ name: "puntuacion", label: "Puntuacion", kind: "percent" }}
+                    def={{ name: "puntuacion", label: "Puntuación", kind: "percent" }}
                     value={form["puntuacion"] ?? ""}
                     onChange={(v) => setForm((p) => ({ ...p, puntuacion: v }))}
                   />
@@ -489,7 +537,7 @@ export default function ComparativoView(props: {
       {verPdfDe !== null && (
         <Modal
           open
-          title={`Adjuntos de la cotizacion — ${verPdfDe.proveedor}`}
+          title={`Adjuntos de la cotización — ${verPdfDe.proveedor}`}
           onClose={() => setVerPdfDe(null)}
           width={720}
         >
@@ -502,12 +550,26 @@ export default function ComparativoView(props: {
       )}
 
       <ConfirmDialog
+        open={confirmaSugeridas}
+        title="Adjudicar lo sugerido"
+        confirmLabel="Adjudicar todo"
+        message={`Se adjudicará cada renglón pendiente a la oferta con mejor puntaje (precio, confiabilidad del proveedor y crédito): ${sugeridas
+          .map(({ linea, cz }) => `${linea.descripcion} → ${cz.proveedor} (${cz.puntaje} pts; ${linea.motivo.toLowerCase()})`)
+          .join("; ")}. Puedes cambiar cualquier renglón después. Queda registrado.`}
+        onConfirm={() => {
+          setConfirmaSugeridas(false);
+          void adjudicarSugeridas();
+        }}
+        onCancel={() => setConfirmaSugeridas(false)}
+      />
+
+      <ConfirmDialog
         open={toAdjudicar !== null}
-        title="Adjudicar cotizacion"
+        title="Adjudicar cotización"
         confirmLabel="Adjudicar"
         message={
           toAdjudicar !== null
-            ? `Vas a adjudicar "${toAdjudicar.detalle}" a ${toAdjudicar.proveedor}. Si otra cotizacion de este renglon ya estaba adjudicada, se reemplaza. Esta decision queda registrada y es la base para generar la Orden de Compra.`
+            ? `Vas a adjudicar "${toAdjudicar.detalle}" a ${toAdjudicar.proveedor}. Si otra cotización de este renglón ya estaba adjudicada, se reemplaza. Esta decisión queda registrada y es la base para generar la Orden de Compra.`
             : ""
         }
         onConfirm={() => {

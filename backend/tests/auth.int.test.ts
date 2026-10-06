@@ -56,7 +56,7 @@ afterAll(async () => {
   await stopTestApp(app);
 });
 
-describe("Autenticacion", () => {
+describe("Autenticación", () => {
   it("rechaza un usuario inexistente con 401", async () => {
     const res = await app.inject({
       method: "POST",
@@ -80,21 +80,21 @@ describe("Autenticacion", () => {
     expect(res.statusCode).toBe(422);
   });
 
-  it("emite token y sesion para un usuario de demostracion", async () => {
+  it("emite token y sesión para un usuario de demostración", async () => {
     const s = await login("comprador");
     expect(s.token.split(".")).toHaveLength(3);
     expect(s.roles).toContain("COMPRADOR");
     expect(s.permisos).toContain("COMPRAS_RFQ_GESTIONAR");
   });
 
-  it("GET /api/auth/me devuelve la sesion con el token", async () => {
+  it("GET /api/auth/me devuelve la sesión con el token", async () => {
     const { token } = await login("gerente");
     const res = await app.inject({ method: "GET", url: "/api/auth/me", headers: bearer(token) });
     expect(res.statusCode).toBe(200);
     expect((res.json() as { data: { username: string } }).data.username).toBe("gerente");
   });
 
-  it("GET /api/auth/permisos publica el catalogo (14 permisos, 8 roles)", async () => {
+  it("GET /api/auth/permisos publica el catálogo (14 permisos, 8 roles)", async () => {
     const res = await app.inject({ method: "GET", url: "/api/auth/permisos" });
     expect(res.statusCode).toBe(200);
     const { data } = res.json() as { data: { permisos: unknown[]; roles: unknown[] } };
@@ -103,7 +103,7 @@ describe("Autenticacion", () => {
   });
 });
 
-describe("Endurecimiento: contrasena, bloqueo y bitacora", () => {
+describe("Endurecimiento: contraseña, bloqueo y bitácora", () => {
   const VICTIMA = "auditor";
 
   beforeAll(() => resetLock(VICTIMA));
@@ -182,7 +182,7 @@ describe("Endurecimiento: contrasena, bloqueo y bitacora", () => {
   });
 });
 
-describe("Cierre de sesion", () => {
+describe("Cierre de sesión", () => {
   it("POST /api/auth/logout con token -> 204", async () => {
     const { token } = await login("gerente");
     const res = await app.inject({
@@ -198,7 +198,7 @@ describe("Cierre de sesion", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("deja rastro LOGOUT en la bitacora", async () => {
+  it("deja rastro LOGOUT en la bitácora", async () => {
     const { token } = await login("comprador");
     await app.inject({ method: "POST", url: "/api/auth/logout", headers: bearer(token) });
     const n = await scalar(
@@ -273,7 +273,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     expect([401, 403]).not.toContain(adj.statusCode);
   });
 
-  it("BODEGA gestiona recepciones/devoluciones; no gestiona ni lee nada mas (403), ni siquiera OC", async () => {
+  it("BODEGA gestiona recepciones/devoluciones; no gestiona ni lee nada más (403), ni siquiera OC", async () => {
     const { token } = await login("bodega");
     const rfq = await app.inject({
       method: "POST",
@@ -347,7 +347,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     }
   });
 
-  it("BODEGA no gestiona OC (403 al listarla) pero elige una via la referencia acotada de su propio formulario de Recepcion", async () => {
+  it("BODEGA no gestiona OC (403 al listarla) pero elige una vía la referencia acotada de su propio formulario de Recepción", async () => {
     const { token } = await login("bodega");
     const listado = await app.inject({ method: "GET", url: "/api/com/ordenes-compra", headers: bearer(token) });
     expect(listado.statusCode).toBe(403);
@@ -357,7 +357,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     expect(Array.isArray(rows.data)).toBe(true);
   });
 
-  it("COMPRADOR edita catalogos operativos pero NO monedas (403) — monedas es de Finanzas", async () => {
+  it("COMPRADOR edita catálogos operativos pero NO monedas (403) — monedas es de Finanzas", async () => {
     const { token } = await login("comprador");
     const op = await app.inject({
       method: "POST",
@@ -375,7 +375,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     expect(sens.statusCode).toBe(403);
   });
 
-  it("GERENTE_FINANCIERO edita catalogos operativos Y monedas (dueno de moneda)", async () => {
+  it("GERENTE_FINANCIERO edita catálogos operativos Y monedas (dueno de moneda)", async () => {
     const { token } = await login("financiero");
     const op = await app.inject({
       method: "POST",
@@ -393,7 +393,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     expect([401, 403]).not.toContain(sens.statusCode);
   });
 
-  it("las tablas de auditoria del flujo (workflow de aprobacion, comparativo) no admiten escritura de nadie via API, ni ADMIN", async () => {
+  it("las tablas de auditoría del flujo (workflow de aprobación, comparativo) no admiten escritura de nadie vía API, ni ADMIN", async () => {
     const { token } = await login("admin");
     for (const url of ["/api/com/workflow-aprobacion", "/api/com/comparativo-cotizaciones"]) {
       const post = await app.inject({ method: "POST", url, headers: bearer(token), payload: {} });
@@ -408,7 +408,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     }
   });
 
-  it("BODEGA no puede editar ningun catalogo (403) pero si verlos (200)", async () => {
+  it("BODEGA no puede editar ningún catálogo (403) pero si verlos (200)", async () => {
     const { token } = await login("bodega");
     const ver = await app.inject({ method: "GET", url: "/api/com/proveedores", headers: bearer(token) });
     expect(ver.statusCode).toBe(200);
@@ -435,7 +435,7 @@ describe("RBAC por rol - deniega lo que no corresponde", () => {
     expect(crea.statusCode).toBe(403);
   });
 
-  it("ADMIN_COMPRAS (comodin *) no recibe 403 en ninguna ruta del modulo", async () => {
+  it("ADMIN_COMPRAS (comodín *) no recibe 403 en ninguna ruta del módulo", async () => {
     const { token, permisos } = await login("admin");
     expect(permisos).toEqual(["*"]);
     for (const url of [

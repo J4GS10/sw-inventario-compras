@@ -51,6 +51,12 @@ export class DocumentDownloadService {
     );
   }
 
+  /** Descarga el PDF de una solicitud de compra (datos, renglones y decisiones). */
+  public async descargarSolicitudPdf(idSolicitud: number): Promise<void> {
+    const blob = await this.http.blob(`/api/com/solicitudes/${idSolicitud}/pdf`);
+    triggerDownload(blob, `solicitud-${idSolicitud}.pdf`);
+  }
+
   /** Descarga el PDF de una orden de compra (documento para el proveedor). */
   public async descargarOrdenCompraPdf(idOrdenCompra: number): Promise<void> {
     const blob = await this.http.blob(`/api/com/ordenes-compra/${idOrdenCompra}/pdf`);

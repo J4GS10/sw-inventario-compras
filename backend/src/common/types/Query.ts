@@ -30,6 +30,8 @@ export interface PageQuery {
   readonly sort?: string;
   readonly order?: SortOrder;
   readonly filters?: readonly FilterCondition[];
+  /** Busqueda global (`?q=`): texto libre, cada palabra debe aparecer en algun campo del registro. */
+  readonly search?: string;
 }
 
 export interface Paginated<T> {
@@ -42,10 +44,15 @@ export interface Paginated<T> {
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 200;
+/** Longitud maxima del texto de busqueda; mas largo se recorta (anti-abuso). */
+export const MAX_SEARCH_LENGTH = 100;
 
 export function normalizePageQuery(input: Partial<PageQuery> | undefined): PageQuery {
-  const page = Math.max(1, Math.trunc(input?.page ?? 1));
-  const rawSize = Math.trunc(input?.pageSize ?? DEFAULT_PAGE_SIZE);
+  // `?page=abc` llega como NaN: sin este saneo el OFFSET invalido terminaba en un ORA-... / 500.
+  const finito = (n: number | undefined, por: number): number =>
+    n !== undefined && Number.isFinite(n) ? Math.trunc(n) : por;
+  const page = Math.max(1, finito(input?.page, 1));
+  const rawSize = finito(input?.pageSize, DEFAULT_PAGE_SIZE);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, rawSize));
   const query: {
     page: number;
@@ -53,6 +60,7 @@ export function normalizePageQuery(input: Partial<PageQuery> | undefined): PageQ
     order: SortOrder;
     filters: readonly FilterCondition[];
     sort?: string;
+    search?: string;
   } = {
     page,
     pageSize,
@@ -60,6 +68,8 @@ export function normalizePageQuery(input: Partial<PageQuery> | undefined): PageQ
     filters: input?.filters ?? [],
   };
   if (input?.sort !== undefined) query.sort = input.sort;
+  const search = input?.search?.trim().slice(0, MAX_SEARCH_LENGTH);
+  if (search !== undefined && search !== "") query.search = search;
   return query;
 }
 

@@ -1,194 +1,256 @@
-# Graph Report - sw-inventario  (2026-10-02)
+# Graph Report - sw-inventario  (2026-10-06)
 
 ## Corpus Check
-- 208 files · ~281,135 words
+- 297 files · ~364,819 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2255 nodes · 4988 edges · 131 communities (110 shown, 12 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 86 edges (avg confidence: 0.81)
+- 3054 nodes · 6864 edges · 186 communities (159 shown, 16 thin omitted)
+- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 193 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
+## Graph Freshness
+- Built from commit: `48a7f5a4`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
+
 ## Community Hubs (Navigation)
-- SEG_USUARIO
+- SCRIPT_DDL.sql
 - PdfBuilder
 - referencias.ts
 - DataTable.tsx
 - HttpClient
 - backend/package.json
-- NotFoundError
+- HttpClient.ts
 - frontend/package.json
 - com/descriptors.ts
 - 6. Arquitectura de software
 - compilerOptions
 - Descripción de las 6 Capas
 - compilerOptions
-- scripts
+- core/borradores.ts
 - Compras e Inventario · Módulo ERP
-- oraclePool
-- react
+- mapOracleError
+- concurrencia.mjs
 - Skill: Stack Tecnológico y Entorno de Ejecución (`sw-inventario`)
 - CompraServices.ts
-- seedFlujoDemo.ts
+- ValidationError
 - adjuntos.ts
 - CLAUDE.md
 - GEMINI.md
-- oracledb
-- HttpClient.ts
-- escasezSubscriber.ts
+- repositoryFactory
+- kardexSubscriber.ts
+- routes/com/index.ts
 - package.json
 - 11. Experiencia interactiva y accesibilidad (UX Intuitivo)
 - rbac-crud-matrix.mjs
 - 1. Principios fundamentales de POO (`skills/patron-arquitectura.md` §1.2)
-- permissions.ts
+- listaUx.tsx
 - 2. Roles: quién ve y hace qué
 - 8. Pantallas clave — Gestión de Compras
-- fileStorage
+- FileStorage.ts
 - 5. Lo realizado en detalle (bloques, orden cronológico inverso)
-- Toast.tsx
+- OrdenCompraService
 - messageOf
-- CrudPage.tsx
-- fastify
+- DocumentForm
+- testApp.ts
 - Avance 03 — Analítica del dashboard: series temporales + índice de ahorro
-- Repository.ts
+- BaseOracleRepository
 - sw-inventario · Módulo de Compras (COM_)
-- leafVisible
-- WithDetails
-- AuditContext
+- Dashboard.tsx
+- SolicitudCompraService.ts
+- transaccional.ts
 - Catálogos y campos de referencia — Módulo de Gestión de Compras
 - OrdenCompraPdfService.ts
-- ComparativoService
+- ComparativoService.ts
 - Estado del proyecto y guía de continuidad — Módulo de Gestión de Compras
-- analitica.ts
-- AdjuntoService.ts
+- Validacion
+- mapearTextos
 - documentForms.ts
 - Avance 06 — Roles endurecidos + inferencia de datos en los formularios
 - DocumentoList.tsx
-- AppShell.tsx
-- routes/com/index.ts
-- app.ts
+- DocumentForm.tsx
+- AuditContext
+- tildes-frontend.mjs
 - Avance 02 — Cierre de Fase 6, diseño y RBAC — Módulo de Gestión de Compras
 - ReporteService.ts
-- AuthContext.tsx
+- dependencies
 - ReporteAppService
 - descriptorHelpers.ts
 - 7. Componentes reutilizables
 - AuthService.ts
 - 10. Pantallas de formularios
 - 2. Objetivo y principios de diseño
-- kardexSubscriber.ts
-- Dashboard.tsx
+- CrudPage.tsx
+- outbox.ts
 - 5. Arquitectura de la interfaz
 - 4. Tipografía e iconografía
 - 9. Pantallas de Catálogos y Productos
-- OrdenCompraPreview.tsx
+- scripts
 - AdjuntoAppService
-- format.ts
+- notificacionesSubscriber.ts
 - primitives.tsx
 - 6. Fase actual y qué sigue (backlog priorizado)
 - Avance 05 — Backlog opcional post‑Fase 6: adjuntos en Devolución, vista previa inline, edición de líneas de cotización y reversa de recepción post‑CxP
-- AppError
-- transaccional.ts
+- StateMachine.ts
+- permissions.ts
 - Avance 04 — Adjuntos de documentos (MinIO) + CRUD completo del ciclo
 - Avance 07 — Análisis del módulo + UI de listas responsive + gating de acciones + 3 correcciones estructurales
 - Field.tsx
-- Logger.ts
+- AppShell
 - DashboardService.ts
-- apiClient.ts
-- qa-roles-smoke.mjs
 - CrudService
-- nav.test.ts
-- DomainEventBus.ts
-- SolicitudCompraService.ts
+- qa-roles-smoke.mjs
+- useNotificaciones.ts
+- seedFlujoDemo.ts
+- S3FileStorage
+- qa-notificaciones-en-vivo.mjs
 - Charts.tsx
-- RefContext.tsx
+- oraclePool
 - RecepcionGuiada.tsx
-- .gastoPorProveedor
+- DocumentoAppService
 - Avance 08 — Primera suite de tests del frontend (infra + cobertura inicial)
 - nav.ts
 - EnvConfig.ts
-- logger
+- idempotency.ts
 - qa-crud-open.mjs
+- reglasNegocio.int.test.ts
+- BorradorRepository.ts
+- RefContext.tsx
 - devDependencies
-- OraclePool.ts
-- AppError.ts
-- S3FileStorage
 - CompraReadRepository.ts
 - DataTable.test.tsx
-- StateMachine.ts
-- reportes.ts
-- authGuard
+- oficial.mjs
+- Avance 11 — Coherencia de documentos, buscador real, orden "lo último primero" y resistencia del sistema
+- http
 - authGuard.ts
 - e2e-negocio-real.mjs
 - Avance 09 — Reportería profesional, ayuda contextual y rediseño (y reversión) del RBAC del módulo
-- dependencies
+- deploy.ts
 - useResource
 - e2e-ciclos-faltantes.mjs
-- cxp.ts
-- ComparativoAppService
+- Informe de seguridad — Pentest OWASP, inyección y concurrencia (2026-10-06)
+- AppError.ts
 - Avance 10 — Auditoría exhaustiva, alineación visual con imágenes de referencia y reset de datos
+- LiquidacionCxP.tsx
+- scalar
+- ortografia.test.ts
+- qa-busqueda-orden.mjs
+- searchSql.ts
+- comparativo.int.test.ts
+- ComCrudService.ts
+- documentoUpdate.int.test.ts
+- alcanceDepartamento.int.test.ts
+- search.ts
+- qa-listas-con-buscador.mjs
+- AdjuntoService.ts
+- catalogsCrud.int.test.ts
+- devDependencies
+- LiveNotifier.tsx
+- gen-ddl-limits.ts
+- DownloadService.ts
+- qa-panel-detalle.mjs
+- BaseCrudController.ts
+- apiClient.ts
+- Auditoría del frontend (UX/UI, responsive, proporción áurea) y resiliencia de almacenamiento — 2026-10-06
+- LiquidacionService.ts
+- dev.mjs
+- ComparativoAppService
+- DelegacionRepository.ts
+- escasezSubscriber.ts
+- AdjuntoService
+- react
+- entrar
+- ScopedLogger
+- DomainEventBus
+- app.ts
+- Toast.tsx
+- SolicitudPdfService.ts
+- logger
+- fastify
+- AuthContext.tsx
+- analitica.ts
+- aprobacionEnVivo.int.test.ts
+- qa-oficial-api.mjs
+- playwright
+- qa-lib.mjs
+- delegacion.int.test.ts
+- App.tsx
+- cxp.ts
+- qa-agilidad.mjs
+- ComparativoPdfService.ts
+- SegAuthRepository.ts
+- density.ts
+- alcanceDe
 - EntityDescriptor.ts
-- scripts
+- Trazabilidad.tsx
+- borradores.int.test.ts
 - EntityDescriptor
-- FakeResizeObserver
-- dependencies
+- scripts
+- tildes-db.ts
+- comFlujo.int.test.ts
+- qa-oficial.mjs
 
 ## God Nodes (most connected - your core abstractions)
-1. `SEG_USUARIO` - 104 edges
-2. `AuditContext` - 93 edges
-3. `oraclePool` - 75 edges
-4. `NotFoundError` - 66 edges
-5. `ValidationError` - 66 edges
-6. `mapOracleError()` - 57 edges
-7. `CompraReadRepository` - 56 edges
-8. `messageOf()` - 54 edges
-9. `5. Lo realizado en detalle (bloques, orden cronológico inverso)` - 44 edges
-10. `logger` - 36 edges
+1. `SEG_USUARIO` - 105 edges
+2. `AuditContext` - 103 edges
+3. `oraclePool` - 98 edges
+4. `mapOracleError()` - 80 edges
+5. `ValidationError` - 75 edges
+6. `NotFoundError` - 72 edges
+7. `CompraReadRepository` - 64 edges
+8. `messageOf()` - 62 edges
+9. `react` - 45 edges
+10. `5. Lo realizado en detalle (bloques, orden cronológico inverso)` - 45 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `scanCode()` --indirect_call--> `n()`  [INFERRED]
+  scripts/tildes-lib.mjs → frontend/src/modules/compras/DocumentoList.tsx
+- `ensureBodega()` --calls--> `scalar()`  [EXTRACTED]
+  backend/tests/comparativo.int.test.ts → backend/tests/helpers/testApp.ts
+- `guardarBorradorActual()` --calls--> `guardarBorrador()`  [EXTRACTED]
+  frontend/src/components/CrudPage.tsx → frontend/src/core/borradores.ts
 - `confirmDelete()` --calls--> `messageOf()`  [EXTRACTED]
   frontend/src/components/CrudPage.tsx → frontend/src/core/errors.ts
-- `registrar()` --calls--> `messageOf()`  [EXTRACTED]
-  frontend/src/modules/compras/RecepcionGuiada.tsx → frontend/src/core/errors.ts
-- `entrar()` --calls--> `messageOf()`  [EXTRACTED]
-  frontend/src/modules/LoginScreen.tsx → frontend/src/core/errors.ts
-- `buildApp()` --indirect_call--> `errorHandler()`  [INFERRED]
-  backend/src/app.ts → backend/src/presentation/middlewares/errorHandler.ts
-- `buildApp()` --calls--> `registerComAdjuntoRoutes()`  [EXTRACTED]
-  backend/src/app.ts → backend/src/presentation/routes/com/adjuntos.ts
+- `opt()` --calls--> `estadoLabel()`  [EXTRACTED]
+  frontend/src/modules/compras/DocumentoList.tsx → frontend/src/core/estados.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (131 total, 12 thin omitted)
+## Communities (186 total, 16 thin omitted)
 
-### Community 0 - "SEG_USUARIO"
+### Community 0 - "SCRIPT_DDL.sql"
 Cohesion: 0.07
-Nodes (103): COM_ACUERDO_DETALLE, COM_ACUERDO_PROVEEDOR, COM_ARTICULO_PROVEEDOR, COM_CATEGORIA_COMPRA, COM_CENTRO_COSTO, COM_COMPARATIVO_COTIZACIONES, COM_CONDICION_PAGO, COM_COTIZACION_DETALLE (+95 more)
+Nodes (105): COM_ACUERDO_DETALLE, COM_ACUERDO_PROVEEDOR, COM_ARTICULO_PROVEEDOR, COM_CATEGORIA_COMPRA, COM_CENTRO_COSTO, COM_COMPARATIVO_COTIZACIONES, COM_CONDICION_PAGO, COM_COTIZACION_DETALLE (+97 more)
+
+### Community 1 - "PdfBuilder"
+Cohesion: 0.22
+Nodes (6): money(), moneyCompact(), pct(), rango(), ReportePdfService, PdfBuilder
 
 ### Community 2 - "referencias.ts"
-Cohesion: 0.20
-Nodes (15): CXP_CHEQUE, CXP_CONTRASENA_PAGO, CXP_FACTURA_PROVEEDOR, INV_ALERTA_ESCASEZ, INV_ARTICULO, INV_BODEGA, INV_CATEGORIA, INV_EXISTENCIA_BODEGA (+7 more)
+Cohesion: 0.18
+Nodes (18): CrudRepository, chequeRepository(), contrasenaPagoRepository(), CXP_CHEQUE, CXP_CONTRASENA_PAGO, CXP_FACTURA_PROVEEDOR, INV_ALERTA_ESCASEZ, INV_ARTICULO (+10 more)
 
 ### Community 3 - "DataTable.tsx"
 Cohesion: 0.10
-Nodes (22): CALIFICACION_ESTRELLAS, calificacionProveedorEstrellas(), LABEL, PRIORIDAD_LABEL, PRIORIDAD_TONO, prioridadLabel(), prioridadTono(), TONO (+14 more)
+Nodes (21): prioridadLabel(), prioridadTono(), formatDia(), BulkAction, cellNode(), cellText(), cellTitle(), Column (+13 more)
 
 ### Community 4 - "HttpClient"
-Cohesion: 0.13
-Nodes (3): NetworkError, HttpClient, HttpRepository
+Cohesion: 0.10
+Nodes (7): esperar(), HttpClient, nuevaClave(), safeStorageGet(), safeStorageRemove(), safeStorageSet(), HttpRepository
 
 ### Community 5 - "backend/package.json"
-Cohesion: 0.05
-Nodes (41): dependencies, @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, class-transformer, class-validator, fastify, @fastify/multipart, oracledb (+33 more)
+Cohesion: 0.10
+Nodes (17): typescript, vitest, main, name, private, type, version, @aws-sdk/s3-request-presigner (+9 more)
 
-### Community 6 - "NotFoundError"
-Cohesion: 0.08
-Nodes (26): FacturaRow, LiquidacionService, LiquidarInput, ORDEN_BUCKETS, ProyeccionPagosResumen, req(), OrdenCompraService, RecepcionService (+18 more)
+### Community 6 - "HttpClient.ts"
+Cohesion: 0.12
+Nodes (17): AppError, ConflictError, ErrorDetail, ForbiddenError, LockedError, NetworkError, NotFoundError, RateLimitedError (+9 more)
 
 ### Community 7 - "frontend/package.json"
-Cohesion: 0.13
-Nodes (15): typescript, vitest, name, private, type, version, jsdom, react-dom (+7 more)
+Cohesion: 0.12
+Nodes (17): dependencies, react, react-dom, typescript, vitest, name, private, type (+9 more)
 
 ### Community 8 - "com/descriptors.ts"
 Cohesion: 0.07
@@ -210,21 +272,21 @@ Nodes (20): 1.1 Diseño Lógico frente a Diseño Físico, 1.2 Principios Fundame
 Cohesion: 0.10
 Nodes (19): compilerOptions, forceConsistentCasingInFileNames, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+11 more)
 
-### Community 13 - "scripts"
-Cohesion: 0.17
-Nodes (12): scripts, build, db:deploy, db:deploy:full, db:seed, db:seed:flujo, dev, gen:entities (+4 more)
+### Community 13 - "core/borradores.ts"
+Cohesion: 0.23
+Nodes (18): borrar(), claveConfirmados(), confirmados(), enviar(), escribir(), FilaServidor, guardarBorrador(), guardarConfirmados() (+10 more)
 
 ### Community 14 - "Compras e Inventario · Módulo ERP"
 Cohesion: 0.20
 Nodes (9): 12. Reglas generales de consistencia visual, 13. Principios de interacción aplicados, 14. Flujo visual y respuesta del sistema, 15. Criterio final de diseño, 1. Agenda, 3. Sistema de diseño — Paleta de color, Colores oficiales, Compras e Inventario · Módulo ERP (+1 more)
 
-### Community 15 - "oraclePool"
-Cohesion: 0.06
-Nodes (21): asOracleError(), mapOracleError(), oraclePool, asBinds(), auditUser(), BaseOracleRepository, asBinds(), CompraReadRepository (+13 more)
+### Community 15 - "mapOracleError"
+Cohesion: 0.14
+Nodes (7): asOracleError(), mapOracleError(), asBinds(), CompraReadRepository, iso(), num(), registerComReferenciaRoutes()
 
-### Community 16 - "react"
+### Community 16 - "concurrencia.mjs"
 Cohesion: 0.12
-Nodes (10): http, EmpresaConfig, FALLBACK, useEmpresaConfig(), LoginScreen(), entrar(), ROL_LABEL, UsuarioDemo (+2 more)
+Nodes (29): aprobada(), conOc(), conRfq(), cot(), get(), post(), ref, solicitud() (+21 more)
 
 ### Community 17 - "Skill: Stack Tecnológico y Entorno de Ejecución (`sw-inventario`)"
 Cohesion: 0.29
@@ -232,31 +294,31 @@ Nodes (6): 1. División Estructural del Repositorio, 2. Definición del Stack Te
 
 ### Community 18 - "CompraServices.ts"
 Cohesion: 0.05
-Nodes (36): humanBytes(), Preview, CampoDetalle, ColumnaLinea, DocumentoDetalle(), Row, AdjuntoMeta, adjuntoService (+28 more)
+Nodes (41): catalogCache, ComparativoDTO, comparativoService, DashboardAppService, DesempenoProveedorItem, GastoProveedorItem, HistorialAppService, HistorialResp (+33 more)
 
-### Community 19 - "seedFlujoDemo.ts"
-Cohesion: 0.21
-Nodes (14): CICLOS, CicloSpec, crearCiclo(), daysFromNow(), envRaw, H, idsTop(), inj() (+6 more)
+### Community 19 - "ValidationError"
+Cohesion: 0.12
+Nodes (10): CotizacionService, DevolucionProveedorService, ReconciliacionService, RfqService, BusinessRuleError, NotFoundError, ValidationError, validateAgainstDescriptor() (+2 more)
 
 ### Community 21 - "adjuntos.ts"
-Cohesion: 0.16
-Nodes (18): TipoDocumentoAdjunto, authGuardAny(), auditContextOf(), adjuntos, DocDef, DOCS, idParam(), R_COTIZACION (+10 more)
+Cohesion: 0.18
+Nodes (13): TipoDocumentoAdjunto, adjuntos, DocDef, DOCS, idParam(), R_COTIZACION, R_DEVOLUCION, R_OC (+5 more)
 
-### Community 27 - "oracledb"
-Cohesion: 0.10
-Nodes (26): countAllTables(), countComTables(), EnvVars, HERE, loadEnv(), main(), REPO_ROOT, runFullDdl() (+18 more)
-
-### Community 28 - "HttpClient.ts"
+### Community 27 - "repositoryFactory"
 Cohesion: 0.15
-Nodes (13): AppError, ConflictError, ErrorDetail, ForbiddenError, LockedError, NotFoundError, ServerError, UnauthorizedError (+5 more)
+Nodes (15): defaultPriceResolver, PriceResolver, PriceQuery, PriceResult, PriceStrategy, Acuerdo, AcuerdoDetalle, AcuerdoMarcoStrategy (+7 more)
 
-### Community 29 - "escasezSubscriber.ts"
-Cohesion: 0.38
-Nodes (6): AlertaRow, ArticuloRow, onExistenciaActualizada(), ExistenciaActualizadaPayload, alertaEscasezRepository(), articuloRepository()
+### Community 28 - "kardexSubscriber.ts"
+Cohesion: 0.35
+Nodes (11): ExistenciaRow, KardexRow, onRecepcionRegistrada(), onRecepcionReversada(), registerKardexSubscriber(), ultimoSaldo(), upsertExistencia(), yaProcesado() (+3 more)
+
+### Community 29 - "routes/com/index.ts"
+Cohesion: 0.12
+Nodes (19): buildCrudService(), AnyMethod, withTelemetry(), CrudService, authGuard(), CRUD_OPERATIVOS, CRUD_SENSIBLES, CRUD_SOLO_LECTURA (+11 more)
 
 ### Community 30 - "package.json"
-Cohesion: 0.12
-Nodes (15): allowScripts, canvas@3.2.3, description, devDependencies, playwright, engines, node, name (+7 more)
+Cohesion: 0.05
+Nodes (38): allowScripts, canvas@3.2.3, dependencies, canvas, mupdf, @napi-rs/canvas, pdfjs-dist, description (+30 more)
 
 ### Community 31 - "11. Experiencia interactiva y accesibilidad (UX Intuitivo)"
 Cohesion: 0.22
@@ -270,9 +332,9 @@ Nodes (21): ACCIONES_ESPECIALES, APROBAR, assertExpected(), assertNo5xx(), call(
 Cohesion: 0.09
 Nodes (22): 1. Principios fundamentales de POO (`skills/patron-arquitectura.md` §1.2), 2. Patrones GoF (`skills/patron-arquitectura.md` §4), 3-bis. POO en el FRONTEND (`frontend/src/`), 3. Modelo de lectura / trazabilidad (Fase 5), 4. Cobertura del flujo completo, 4. Cómo se sostiene "limpio, ordenado y profesional", Abstracción, Alta cohesión y bajo acoplamiento (+14 more)
 
-### Community 34 - "permissions.ts"
-Cohesion: 0.19
-Nodes (11): empleadosEnAlcance(), ROLES_SIN_ALCANCE, BandejaPendientes, NADA, Notificacion, notificacionService, NotiTipo, hasPermiso() (+3 more)
+### Community 34 - "listaUx.tsx"
+Cohesion: 0.22
+Nodes (18): chip(), clave(), columnaUrgencia(), dia(), diasEntre(), entregaOrden(), esperaSolicitud(), FiltroRapido (+10 more)
 
 ### Community 35 - "2. Roles: quién ve y hace qué"
 Cohesion: 0.20
@@ -282,101 +344,101 @@ Nodes (9): 1. El flujo, paso a paso, y qué lo cubre en el sistema, 2. Roles: qu
 Cohesion: 0.25
 Nodes (8): 8. Pantallas clave — Gestión de Compras, Catálogo, Cotizaciones, Facturación / CxP, Proveedores, Recepción, Solicitudes, Órdenes de Compra
 
-### Community 37 - "fileStorage"
-Cohesion: 0.16
+### Community 37 - "FileStorage.ts"
+Cohesion: 0.14
 Nodes (3): fileStorage, InMemoryFileStorage, StorageFactory
 
 ### Community 38 - "5. Lo realizado en detalle (bloques, orden cronológico inverso)"
-Cohesion: 0.05
-Nodes (44): 5.0 Endurecimiento de autenticación (subfase 6.1) — 2026-09-10, 5.-10 Roles endurecidos + inferencia de datos en formularios — 2026-09-10, 5.-11 Análisis del módulo + UI de listas responsive + gating de acciones + 3 correcciones estructurales — 2026-09-10, 5.-12 Primera suite de tests del frontend (infra + cobertura inicial) — 2026-09-10, 5.-13 Acceso al PDF de la cotización desde el Comparativo — 2026-09-10/11, 5.-14 Asistente guiado RFQ→Cotización→Comparativo→OC + fusión Comprador/Financiero — 2026-09-11, 5.-15 Fixes tras probar el asistente en vivo: select ilegible ("#187") + "Autoriza la orden" sin filtrar — 2026-09-11, 5.-16 Revertida la fusión Comprador/Financiero — 2026-09-11 (+36 more)
+Cohesion: 0.04
+Nodes (45): 5.0 Endurecimiento de autenticación (subfase 6.1) — 2026-09-10, 5.-10 Roles endurecidos + inferencia de datos en formularios — 2026-09-10, 5.-11 Análisis del módulo + UI de listas responsive + gating de acciones + 3 correcciones estructurales — 2026-09-10, 5.-12 Primera suite de tests del frontend (infra + cobertura inicial) — 2026-09-10, 5.-13 Acceso al PDF de la cotización desde el Comparativo — 2026-09-10/11, 5.-14 Asistente guiado RFQ→Cotización→Comparativo→OC + fusión Comprador/Financiero — 2026-09-11, 5.-15 Fixes tras probar el asistente en vivo: select ilegible ("#187") + "Autoriza la orden" sin filtrar — 2026-09-11, 5.-16 Revertida la fusión Comprador/Financiero — 2026-09-11 (+37 more)
 
-### Community 39 - "Toast.tsx"
-Cohesion: 0.18
-Nodes (5): Ctx, ToastApi, ToastItem, ToastTone, TONE
+### Community 39 - "OrdenCompraService"
+Cohesion: 0.16
+Nodes (9): OrdenCompraService, RecepcionService, TransactionScope, OrdenCompra, OrdenCompraDetalle, OrdenCompraEstado, Recepcion, RecepcionDetalle (+1 more)
 
 ### Community 40 - "messageOf"
 Cohesion: 0.08
-Nodes (35): AdjuntosPanel(), descargar(), eliminar(), onFile(), ver(), messageOf(), formatMoney(), ComparativoView() (+27 more)
+Nodes (40): AdjuntosPanel(), descargar(), eliminar(), onFile(), ver(), humanBytes(), Preview, SUGERENCIA_ADJUNTO (+32 more)
 
-### Community 41 - "CrudPage.tsx"
-Cohesion: 0.11
-Nodes (33): CrudFieldDef, CrudPage(), confirmDelete(), openCreate(), openEdit(), save(), CrudPageConfig, Row (+25 more)
+### Community 41 - "DocumentForm"
+Cohesion: 0.20
+Nodes (13): DocumentForm(), descartarBorrador(), enfocarPrimerError(), enfocarPrimerErrorServidor(), onPrimaryClick(), submit(), validar(), claveRecordada() (+5 more)
 
-### Community 42 - "fastify"
-Cohesion: 0.06
-Nodes (41): Ids, inTwoWeeks, state, bearer(), crearSolicitud(), Fk, idsVisibles(), token() (+33 more)
+### Community 42 - "testApp.ts"
+Cohesion: 0.16
+Nodes (11): Ids, inTwoWeeks, state, envRaw, startTestApp(), stopTestApp(), SYS_HEADERS, Ids (+3 more)
 
 ### Community 43 - "Avance 03 — Analítica del dashboard: series temporales + índice de ahorro"
 Cohesion: 0.13
 Nodes (14): 0. Resumen ejecutivo, 1. Decisiones de métrica (respuestas del usuario), 2.1 `dal/repositories/com/CompraReadRepository.ts` — 3 consultas nuevas, 2.2 `bll/services/com/DashboardService.ts` (nuevo), 2.3 `presentation/routes/com/analitica.ts`, 2. Backend, 3.1 `core/CompraServices.ts`, 3.2 `ui/Charts.tsx` (nuevo, exports nombrados — convención de `ui/`) (+6 more)
 
-### Community 44 - "Repository.ts"
-Cohesion: 0.12
-Nodes (6): Page, QueryParams, IRepository, ListQuery, repositoryFactory, RestRepository
+### Community 44 - "BaseOracleRepository"
+Cohesion: 0.19
+Nodes (4): asBinds(), auditUser(), BaseOracleRepository, findColumn()
 
 ### Community 45 - "sw-inventario · Módulo de Compras (COM_)"
 Cohesion: 0.33
 Nodes (5): Docker, La tesis POO: configurar, no programar, Pruebas, Puesta en marcha, sw-inventario · Módulo de Compras (COM_)
 
-### Community 46 - "leafVisible"
-Cohesion: 0.22
-Nodes (6): ALL_LEAVES, leafVisible(), FlowStep, FlowStepper(), StepDef, STEPS
+### Community 46 - "Dashboard.tsx"
+Cohesion: 0.19
+Nodes (11): DashboardResumen, dashboardService, AYUDA_DASHBOARD, Dashboard(), Q_COMPACT, Responsable, Row, tendencia() (+3 more)
 
-### Community 47 - "WithDetails"
-Cohesion: 0.21
-Nodes (5): CotizacionService, DevolucionProveedorService, WithDetails, CotizacionDetalle, DevolucionProveedor
+### Community 47 - "SolicitudCompraService.ts"
+Cohesion: 0.05
+Nodes (74): envRaw, OrdenCompraEstado, ordenCompraStateMachine, RecepcionEstado, recepcionStateMachine, RfqEstado, rfqStateMachine, SOLICITUD_NIVEL (+66 more)
 
-### Community 49 - "AuditContext"
-Cohesion: 0.14
-Nodes (10): RfqService, SolicitudCompraService, ForbiddenError, ValidationError, AuditContext, validateAgainstDescriptor(), validateDto(), SolicitudCompra (+2 more)
+### Community 49 - "transaccional.ts"
+Cohesion: 0.11
+Nodes (22): authGuardAny(), cotizaciones, devoluciones, DocumentoService, envelope(), idParam(), ordenes, ordenesPdf (+14 more)
 
 ### Community 50 - "Catálogos y campos de referencia — Módulo de Gestión de Compras"
 Cohesion: 0.20
 Nodes (9): 1. Tipos de "catálogo" en el módulo, 2. Datos semilla cargados (`database/dml/`), 3. Campos corregidos (eran texto/ID libre, ahora son catálogo), 4. Campos que quedan como texto libre (correcto), 5. Pendiente (catálogos estáticos ya definidos, faltan sus pantallas), Catálogos (`frontend/src/modules/compras/catalogPages.tsx`), Catálogos y campos de referencia — Módulo de Gestión de Compras, Comparativo de cotizaciones (`ComparativoView.tsx`) (+1 more)
 
 ### Community 51 - "OrdenCompraPdfService.ts"
-Cohesion: 0.13
-Nodes (11): ComparativoPdfService, money(), money(), OrdenCompraPdfService, Doc, MARGIN, PdfColumn, StoredFile (+3 more)
+Cohesion: 0.16
+Nodes (14): estadoVisual(), fechaLarga(), MESES, money(), nombreMoneda(), OrdenCompraPdfService, qty(), CENTENAS (+6 more)
 
-### Community 52 - "ComparativoService"
-Cohesion: 0.31
-Nodes (4): ComparativoService, ComparativoSolicitud, CotizacionComparada, CriterioComparativo
+### Community 52 - "ComparativoService.ts"
+Cohesion: 0.12
+Nodes (17): CONFIABILIDAD_NEUTRA, MAX_SOBRE_PRECIO, OfertaParaPuntuar, OfertaPuntuada, PESOS, puntuarRenglon(), r2(), SugerenciaRenglon (+9 more)
 
 ### Community 53 - "Estado del proyecto y guía de continuidad — Módulo de Gestión de Compras"
 Cohesion: 0.18
 Nodes (10): 1. Qué es el proyecto, 2. Stack y comandos, 3. Arquitectura (6 capas, flujo unidireccional hacia abajo), 4. Estado por fases, 7. Cómo levantar y verificar, 8. Mapa de archivos de referencia, 9. Convenciones al retomar, Estado del proyecto y guía de continuidad — Módulo de Gestión de Compras (+2 more)
 
-### Community 54 - "analitica.ts"
-Cohesion: 0.27
-Nodes (9): comparativo, comparativoPdf, dashboard, idParam(), intQuery(), READ, registerComAnaliticaRoutes(), strQuery() (+1 more)
+### Community 54 - "Validacion"
+Cohesion: 0.10
+Nodes (41): CabeceraSolicitudDatos, devolvibleDeLinea(), HORIZONTE_DIAS, limiteFuturo(), LineaCotizacionDatos, LineaOrdenDatos, LineaSolicitudDatos, MAX_DESCRIPCION_LINEA (+33 more)
 
-### Community 55 - "AdjuntoService.ts"
-Cohesion: 0.22
-Nodes (9): AdjuntoMeta, AdjuntoService, assertRef(), Manifiesto, maxBytes(), MIME_PERMITIDOS, REPOS, saneNombre() (+1 more)
+### Community 55 - "mapearTextos"
+Cohesion: 0.06
+Nodes (35): filas, acentuar(), lista, re, recorrer(), args, cuenta, dirs (+27 more)
 
 ### Community 56 - "documentForms.ts"
-Cohesion: 0.06
-Nodes (33): CALIFICACION_PROVEEDOR, CRITERIO_COMPARATIVO, ESTADO_AI, ESTADO_SEGUIMIENTO_ORDEN, MOTIVO_DEVOLUCION, PRIORIDAD_SOLICITUD, TIPO_EXCEPCION_ORDEN, ComparativoDTO (+25 more)
+Cohesion: 0.07
+Nodes (30): CALIFICACION_PROVEEDOR, CRITERIO_COMPARATIVO, ESTADO_AI, ESTADO_SEGUIMIENTO_ORDEN, MOTIVO_DEVOLUCION, PRIORIDAD_SOLICITUD, TIPO_EXCEPCION_ORDEN, CATALOG_CONFIGS (+22 more)
 
 ### Community 57 - "Avance 06 — Roles endurecidos + inferencia de datos en los formularios"
 Cohesion: 0.12
 Nodes (16): 0. Resumen ejecutivo, 1. La jerarquía de roles (respuesta a "no entiendo la lógica"), 2. Por qué "el bodeguero veía todo" — diagnóstico, 3.1 Atajo `X-Dev-User` cerrado por defecto, 3.2 Lectura por documento (segregación de funciones), 3.3 Alcance por departamento en RFQ y Cotización, 3.4 Verificado en vivo (login real, sin atajo), 3. Roles endurecidos (backend) (+8 more)
 
 ### Community 58 - "DocumentoList.tsx"
-Cohesion: 0.09
-Nodes (21): ActionModalState, CREAR_PERM, DETALLE_KEYS, DocConfig, DOCUMENTO_CONFIGS, EDIT_FIELDS, EMPTY_HINT, FLOW_STEP (+13 more)
+Cohesion: 0.08
+Nodes (22): ActionModalState, CREAR_PERM, DETALLE_KEYS, DocConfig, DOCUMENTO_CONFIGS, EDIT_FIELDS, EMPTY_HINT, FLOW_STEP (+14 more)
 
-### Community 59 - "AppShell.tsx"
-Cohesion: 0.20
-Nodes (11): container, MODULES, SystemModule, visibleSections(), AppShell(), cycleTheme(), ROL_LABEL, applyTheme() (+3 more)
+### Community 59 - "DocumentForm.tsx"
+Cohesion: 0.11
+Nodes (30): displayValue(), aplicarPegado(), DocumentFormConfig, PanelDerivado(), Values, aNumero(), AutoFillSpec, buildLabel() (+22 more)
 
-### Community 60 - "routes/com/index.ts"
-Cohesion: 0.17
-Nodes (8): BaseCrudService, buildCrudService(), AnyMethod, withTelemetry(), CRUD_OPERATIVOS, CRUD_SENSIBLES, CRUD_SOLO_LECTURA, registerComRoutes()
+### Community 60 - "AuditContext"
+Cohesion: 0.07
+Nodes (12): BaseCrudService, SolicitudCompraService, ForbiddenError, AuditContext, validateDto(), IHeaderDetailRepository, WithDetails, IRepository (+4 more)
 
-### Community 61 - "app.ts"
-Cohesion: 0.20
-Nodes (11): adjuntoMaxBytes(), buildApp(), PERMISO_META, ROLES, isAppError(), errorHandler(), clientIp(), registerAuthRoutes() (+3 more)
+### Community 61 - "tildes-frontend.mjs"
+Cohesion: 0.21
+Nodes (12): acentuar(), AMBIGUAS, conMayus(), DRY, esTextoUsuario(), PALABRAS, procesar(), raiz (+4 more)
 
 ### Community 62 - "Avance 02 — Cierre de Fase 6, diseño y RBAC — Módulo de Gestión de Compras"
 Cohesion: 0.12
@@ -384,15 +446,15 @@ Nodes (15): 0. Resumen ejecutivo, 1. Autenticación endurecida (6.1), 2. Alcance
 
 ### Community 63 - "ReporteService.ts"
 Cohesion: 0.13
-Nodes (16): calcularScore(), CALIFICACION_SCORE, GastoProveedorItem, nivelDe(), NivelRiesgo, normFecha(), ReporteDesempenoProveedores, ReporteGastoProveedor (+8 more)
+Nodes (16): calcularScore(), CALIFICACION_SCORE, GastoProveedorItem, nivelDe(), NivelRiesgo, normRango(), ReporteDesempenoProveedores, ReporteGastoProveedor (+8 more)
 
-### Community 64 - "AuthContext.tsx"
-Cohesion: 0.17
-Nodes (6): AuthContext, boot(), AuthState, jwtExp(), Sesion, tokenVigente()
+### Community 64 - "dependencies"
+Cohesion: 0.18
+Nodes (11): dependencies, @aws-sdk/client-s3, @aws-sdk/s3-request-presigner, class-transformer, class-validator, fastify, @fastify/multipart, oracledb (+3 more)
 
 ### Community 66 - "descriptorHelpers.ts"
-Cohesion: 0.20
-Nodes (11): AuditMode, buildDescriptor(), camelPk(), col(), ColOpts, CREATED_AUDIT_COLUMNS, MODIFIED_AUDIT_COLUMNS, pkCol() (+3 more)
+Cohesion: 0.12
+Nodes (17): DDL_LIMITES, LimiteDdl, AuditMode, buildDescriptor(), BuildOpts, camelPk(), col(), ColOpts (+9 more)
 
 ### Community 68 - "7. Componentes reutilizables"
 Cohesion: 0.33
@@ -410,13 +472,13 @@ Nodes (4): 10. Pantallas de formularios, Campos automáticos, Organización, Val
 Cohesion: 0.50
 Nodes (4): 2. Objetivo y principios de diseño, Apple Human Interface Guidelines, Fluent Design, Material Design 3
 
-### Community 73 - "kardexSubscriber.ts"
-Cohesion: 0.27
-Nodes (14): registerCxpSubscriber(), registerEscasezSubscriber(), registerComprasSubscribers(), ExistenciaRow, KardexRow, onRecepcionRegistrada(), onRecepcionReversada(), registerKardexSubscriber() (+6 more)
+### Community 73 - "CrudPage.tsx"
+Cohesion: 0.17
+Nodes (15): CrudFieldDef, CrudPage(), confirmDelete(), descartarBorrador(), guardarBorradorActual(), openCreate(), openEdit(), save() (+7 more)
 
-### Community 74 - "Dashboard.tsx"
-Cohesion: 0.08
-Nodes (26): DashboardResumen, dashboardService, CrudServiceOptions, AppEventName, AppEvents, EntityChangedPayload, eventBus, Handler (+18 more)
+### Community 74 - "outbox.ts"
+Cohesion: 0.12
+Nodes (16): CrudServiceOptions, AppEventName, AppEvents, EntityChangedPayload, eventBus, Handler, ToastPayload, PageMeta (+8 more)
 
 ### Community 75 - "5. Arquitectura de la interfaz"
 Cohesion: 0.50
@@ -430,17 +492,17 @@ Nodes (3): 4. Tipografía e iconografía, Iconografía, Tipografía
 Cohesion: 0.67
 Nodes (3): 9. Pantallas de Catálogos y Productos, Catálogo, Nuevo Producto en el Catálogo Permanente
 
-### Community 78 - "OrdenCompraPreview.tsx"
-Cohesion: 0.17
-Nodes (7): Header, Linea, num2(), OrdenCompraPreview(), DocumentDownloadService, downloadService, triggerDownload()
+### Community 78 - "scripts"
+Cohesion: 0.20
+Nodes (10): scripts, build, dev, gen:entities, gen:limits, start, test, test:int (+2 more)
 
-### Community 80 - "format.ts"
-Cohesion: 0.16
-Nodes (12): HistorialResp, historialService, formatPercent(), formatQty(), MONEY, PERCENT, QTY, RATE (+4 more)
+### Community 80 - "notificacionesSubscriber.ts"
+Cohesion: 0.13
+Nodes (9): construirDecision(), DecisionEnVivo, registerNotificacionesSubscriber(), SIGUIENTE, SolicitudAprobacionPayload, liveHub, LiveMessage, Sender (+1 more)
 
 ### Community 81 - "primitives.tsx"
-Cohesion: 0.08
-Nodes (14): HistorialAprobacion(), Row, catalogService(), estadoLabel(), estadoTono, opt(), OrdenesPorEstado(), ButtonVariant (+6 more)
+Cohesion: 0.07
+Nodes (21): HistorialAprobacion(), Row, catalogService(), CALIFICACION_ESTRELLAS, calificacionProveedorEstrellas(), estadoIcono(), estadoLabel(), estadoTono (+13 more)
 
 ### Community 82 - "6. Fase actual y qué sigue (backlog priorizado)"
 Cohesion: 0.22
@@ -450,13 +512,13 @@ Nodes (9): 6.1 Endurecer autenticación — ✅ HECHO (2026-09-10, ver §5.0), 6
 Cohesion: 0.13
 Nodes (14): 0. Resumen ejecutivo, 1. Adjuntos en Devolución a proveedor, 2. Vista previa inline de adjuntos, 3. Editar líneas de cotización desde el frontend, 4-bis. Acciones de fila uniformes (todas las tablas del sistema), 4. Reversa de recepción que ya alimentó CxP, 5. Verificación, 6. Puntos de entrada nuevos / tocados (+6 more)
 
-### Community 84 - "AppError"
-Cohesion: 0.15
-Nodes (6): AppError, ConflictError, ForeignKeyError, InternalError, OracleErrorShape, BaseHeaderDetailRepository
+### Community 84 - "StateMachine.ts"
+Cohesion: 0.21
+Nodes (6): StateMachine, ESTADO_LABEL, estadoLabel(), ORDEN_COMPRA_ESTADOS, OcEstado, ocMachine
 
-### Community 85 - "transaccional.ts"
-Cohesion: 0.09
-Nodes (24): FilterOperator, readOnlyList(), cotizaciones, devoluciones, listQuery(), ordenes, ordenesPdf, READ_COTIZACIONES (+16 more)
+### Community 85 - "permissions.ts"
+Cohesion: 0.12
+Nodes (15): empleadosEnAlcance(), ROLES_SIN_ALCANCE, delegacionService, BandejaPendientes, DecisionRecibida, DIAS_DECISIONES, NADA, Notificacion (+7 more)
 
 ### Community 87 - "Avance 04 — Adjuntos de documentos (MinIO) + CRUD completo del ciclo"
 Cohesion: 0.20
@@ -467,100 +529,108 @@ Cohesion: 0.18
 Nodes (10): 0. Resumen ejecutivo, 1. Análisis del módulo (resumen — detalle con cita en el plan), 2. WS1 — Sistema de columnas de `DataTable` (UI de listas), 3. WS2 — Gating de acciones por permiso, 4. WS3 — Rollback del estado de la OC en reversa/borrado de recepción, 5. WS4 — Resiliencia del bus de eventos, 6. WS5 — Pantallas de Seguimiento / Excepciones de OC, 7. Verificación (+2 more)
 
 ### Community 89 - "Field.tsx"
-Cohesion: 0.21
-Nodes (8): FieldDef, FieldValue, SelectOption, FIELD_KINDS, FieldKind, FieldKindSpec, numRange(), req()
+Cohesion: 0.16
+Nodes (13): dateBounds, Field(), FieldDef, fieldError(), FieldValue, fmtDia(), hoyLocal(), SelectOption (+5 more)
 
-### Community 90 - "Logger.ts"
-Cohesion: 0.18
-Nodes (4): LEVEL_WEIGHT, LogFields, LogLevel, ScopedLogger
+### Community 90 - "AppShell"
+Cohesion: 0.25
+Nodes (7): container, AppShell(), cycleTheme(), applyTheme(), getTheme(), initTheme(), ThemeMode
 
 ### Community 91 - "DashboardService.ts"
 Cohesion: 0.19
 Nodes (12): AhorroAdjudicacionResumen, clampMeses(), DashboardResumen, DashboardService, MES_LABEL, ProyeccionGastoMensual, proyectarGasto(), PuntoCompraMes (+4 more)
 
-### Community 92 - "apiClient.ts"
-Cohesion: 0.27
-Nodes (8): api, ApiRequestError, client, guard(), toApiRequestError(), isAppError(), PageMeta, ResourceState
-
 ### Community 93 - "qa-roles-smoke.mjs"
 Cohesion: 0.20
 Nodes (9): byRole, __dirname, errores, HEADED, header, LEAVES, outFile, report (+1 more)
 
-### Community 95 - "nav.test.ts"
-Cohesion: 0.18
-Nodes (6): Suite(), NavLeaf, NavSection, leafConPermiso, leafSinPermiso, visibleLeaves()
+### Community 94 - "useNotificaciones.ts"
+Cohesion: 0.17
+Nodes (16): BandejaPendientes, DecisionRecibida, fetchDecisiones(), fetchPendientes(), Notificacion, NotiTipo, VACIA, leerVisto() (+8 more)
 
-### Community 97 - "SolicitudCompraService.ts"
-Cohesion: 0.07
-Nodes (53): OrdenCompraEstado, ordenCompraStateMachine, RecepcionEstado, recepcionStateMachine, RfqEstado, rfqStateMachine, SOLICITUD_NIVEL, SolicitudEstado (+45 more)
+### Community 95 - "seedFlujoDemo.ts"
+Cohesion: 0.21
+Nodes (14): CICLOS, CicloSpec, crearCiclo(), daysFromNow(), envRaw, H, idsTop(), inj() (+6 more)
 
-### Community 99 - "RefContext.tsx"
+### Community 96 - "S3FileStorage"
+Cohesion: 0.49
+Nodes (3): S3FileStorage, traducirErrorAlmacenamiento(), @aws-sdk/client-s3
+
+### Community 97 - "qa-notificaciones-en-vivo.mjs"
 Cohesion: 0.15
-Nodes (10): ALL_KINDS, DOC_PREFIX, DocRef, FALLBACK, RefContext, RefKind, RefProvider(), Refs (+2 more)
+Nodes (12): abrirSolicitudes(), apiA, crear(), decidirEnUI(), dia, entrar(), HEADED, ref() (+4 more)
+
+### Community 99 - "oraclePool"
+Cohesion: 0.17
+Nodes (3): oraclePool, asBinds(), segAuthRepository
 
 ### Community 100 - "RecepcionGuiada.tsx"
-Cohesion: 0.15
-Nodes (19): withResolvedOptions(), useWizardStep(), avanzar(), cerrarSiNoAvanzo(), AsistenteCotizacion(), alCrearRfq(), saltarProveedor(), siguienteCotizacion() (+11 more)
+Cohesion: 0.12
+Nodes (22): withResolvedOptions(), normalizarTexto(), useWizardStep(), avanzar(), cerrarSiNoAvanzo(), AsistenteCotizacion(), alCrearRfq(), saltarProveedor() (+14 more)
 
-### Community 101 - ".gastoPorProveedor"
-Cohesion: 0.36
-Nodes (5): money(), moneyCompact(), pct(), rango(), ReportePdfService
+### Community 101 - "DocumentoAppService"
+Cohesion: 0.16
+Nodes (6): CampoDetalle, ColumnaLinea, DocumentoDetalle(), Row, DocumentoAppService, TipoDocAdjunto
 
 ### Community 102 - "Avance 08 — Primera suite de tests del frontend (infra + cobertura inicial)"
 Cohesion: 0.18
 Nodes (10): 0. Resumen ejecutivo, 1. Por qué este alcance y no otro, 2. Infraestructura nueva, 3. Tests de lógica pura, 4. `ui/DataTable.test.tsx` (13 casos), 5. `ui/FlowStepper.test.tsx` (2 casos), 6. Verificación, 7. Puntos de entrada nuevos / tocados (+2 more)
 
 ### Community 103 - "nav.ts"
-Cohesion: 0.16
-Nodes (17): AuthProvider(), grants(), grantsAny(), PermisoCodigo, Permisos, READ_COTIZACIONES, READ_DEVOLUCIONES, READ_FLUJO (+9 more)
+Cohesion: 0.10
+Nodes (29): PermisoCodigo, Permisos, READ_COTIZACIONES, READ_DEVOLUCIONES, READ_FLUJO, READ_OC, READ_RECEPCIONES, READ_RFQ (+21 more)
 
 ### Community 104 - "EnvConfig.ts"
 Cohesion: 0.23
 Nodes (10): AppEnvironment, AuthConfig, buildConnectString(), EmpresaConfig, EnvConfig, HttpConfig, OracleConfig, readFirst() (+2 more)
 
+### Community 106 - "idempotency.ts"
+Cohesion: 0.19
+Nodes (10): Entrada, enviar(), fastify, FastifyRequest, huellaDe(), limpiar(), METODOS, registerIdempotency() (+2 more)
+
 ### Community 107 - "qa-crud-open.mjs"
-Cohesion: 0.22
-Nodes (8): playwright, __dirname, errores, HEADED, outFile, report, rolesArg, SCREENS
+Cohesion: 0.25
+Nodes (7): __dirname, errores, HEADED, outFile, report, rolesArg, SCREENS
 
-### Community 108 - "devDependencies"
-Cohesion: 0.15
-Nodes (13): devDependencies, jsdom, tailwindcss, @tailwindcss/vite, @testing-library/jest-dom, @testing-library/react, @testing-library/user-event, @types/react (+5 more)
+### Community 108 - "reglasNegocio.int.test.ts"
+Cohesion: 0.24
+Nodes (9): cotizacionBody(), dia(), H, Ids, mensaje(), post(), rfqAbierto(), solicitudAprobada() (+1 more)
 
-### Community 109 - "OraclePool.ts"
-Cohesion: 0.23
-Nodes (6): env(), loadDotenv(), main(), envRaw, H, Ids
+### Community 109 - "BorradorRepository.ts"
+Cohesion: 0.31
+Nodes (4): DIAS_VIGENCIA, binds(), BorradorRepository, BorradorRow
 
-### Community 110 - "AppError.ts"
-Cohesion: 0.08
-Nodes (17): rfqIdsEnAlcance(), solicitudIdsEnAlcance(), ErrorCode, OptimisticLockError, SYSTEM_AUDIT_CONTEXT, buildPaginated(), DEFAULT_PAGE_SIZE, FilterCondition (+9 more)
+### Community 110 - "RefContext.tsx"
+Cohesion: 0.14
+Nodes (11): ALL_KINDS, DOC_PREFIX, DocRef, FALLBACK, RefContext, RefKind, RefProvider(), Refs (+3 more)
 
-### Community 111 - "S3FileStorage"
-Cohesion: 0.46
-Nodes (3): S3FileStorage, @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
+### Community 111 - "devDependencies"
+Cohesion: 0.29
+Nodes (7): devDependencies, tsx, @types/node, @types/oracledb, @types/pdfkit, typescript, vitest
 
 ### Community 112 - "CompraReadRepository.ts"
-Cohesion: 0.10
-Nodes (17): HistorialProveedorResult, BucketPagoProyectado, RecepcionPdfService, AhorroAdjudicacionRow, AlertaEscasezRow, BucketPagoRow, CompraMesRow, EntradaMesRow (+9 more)
+Cohesion: 0.12
+Nodes (13): RecepcionPdfService, AhorroAdjudicacionRow, AlertaEscasezRow, CompraMesRow, DecisionSolicitudRow, EntradaMesRow, HistorialQuery, LineaPendienteOcRow (+5 more)
 
 ### Community 113 - "DataTable.test.tsx"
-Cohesion: 0.20
-Nodes (8): toggleAll(), BASE_COLUMNS, Row, rowKey(), ROWS, { PERM_RFQ, hasAnyPerm }, @testing-library/react, @testing-library/user-event
+Cohesion: 0.11
+Nodes (10): toggleAll(), BASE_COLUMNS, FakeResizeObserver, Row, rowKey(), ROWS, { PERM_RFQ, hasAnyPerm }, OPCIONES (+2 more)
 
-### Community 114 - "StateMachine.ts"
-Cohesion: 0.23
-Nodes (5): StateMachine, ESTADO_LABEL, estadoLabel(), OcEstado, ocMachine
+### Community 114 - "oficial.mjs"
+Cohesion: 0.17
+Nodes (13): abierto(), backend, detener(), dirEstado, esperar(), estado(), frontend, leerPids() (+5 more)
 
-### Community 115 - "reportes.ts"
-Cohesion: 0.32
-Nodes (6): enviarPdf(), fechaQuery(), READ, registerComReportesRoutes(), reportes, reportesPdf
+### Community 115 - "Avance 11 — Coherencia de documentos, buscador real, orden "lo último primero" y resistencia del sistema"
+Cohesion: 0.13
+Nodes (14): 0. Qué pidió el usuario y qué se encontró, 1. Orden: lo último primero, 2. Buscador global (`?q=`), 3. Coherencia de fechas y cantidades (`bll/compras/reglasDocumentos.ts`), 4. Resistencia, 5. Verificación (real, contra Oracle y navegador), 6. Descubierto al levantar el sistema, 7. Qué NO cambió (+6 more)
 
-### Community 116 - "authGuard"
-Cohesion: 0.15
-Nodes (9): BaseCrudController, CrudService, extractVersion(), parseId(), authGuard(), CrudRouteConfig, registerCrudRoutes(), registerReadOnlyCrudRoutes() (+1 more)
+### Community 116 - "http"
+Cohesion: 0.17
+Nodes (12): Header, Linea, num2(), OrdenCompraPreview(), http, EmpresaConfig, FALLBACK, useEmpresaConfig() (+4 more)
 
 ### Community 117 - "authGuard.ts"
-Cohesion: 0.30
-Nodes (9): base64url(), fromBase64url(), JwtPayload, signJwt(), verifyJwt(), UnauthorizedError, fastify, FastifyRequest (+1 more)
+Cohesion: 0.13
+Nodes (18): base64url(), fromBase64url(), JwtPayload, REVOCADOS, revocarToken(), signJwt(), verifyJwt(), clientIpOf() (+10 more)
 
 ### Community 118 - "e2e-negocio-real.mjs"
 Cohesion: 0.42
@@ -570,57 +640,241 @@ Nodes (8): api(), check(), expectStatus(), login(), main(), record(), results, s
 Cohesion: 0.29
 Nodes (6): 0. Resumen ejecutivo, 1. Cómo se llegó aquí (cronología de la sesión), 2. Estado final verificado, 3. Qué NO cambió (deliberadamente, y sigue vigente), 4. Sin pendientes de alcance, Avance 09 — Reportería profesional, ayuda contextual y rediseño (y reversión) del RBAC del módulo
 
-### Community 120 - "dependencies"
-Cohesion: 0.40
-Nodes (5): dependencies, canvas, mupdf, @napi-rs/canvas, pdfjs-dist
+### Community 120 - "deploy.ts"
+Cohesion: 0.27
+Nodes (12): countAllTables(), countComTables(), ensureBorradores(), ensureDelegaciones(), EnvVars, HERE, loadEnv(), main() (+4 more)
 
 ### Community 122 - "e2e-ciclos-faltantes.mjs"
 Cohesion: 0.52
 Nodes (6): api(), check(), expectStatus(), login(), main(), results
 
-### Community 123 - "cxp.ts"
-Cohesion: 0.38
-Nodes (6): FormaPago, CXP, idParam(), liquidacion, liquidarBody(), registerComCxpRoutes()
+### Community 123 - "Informe de seguridad — Pentest OWASP, inyección y concurrencia (2026-10-06)"
+Cohesion: 0.29
+Nodes (6): 1. Hallazgos corregidos, 2. Lo que se probó y NO es vulnerable, 3. XSS, 4. Riesgo residual (decisiones / entorno), Informe de seguridad — Pentest OWASP, inyección y concurrencia (2026-10-06), Resultado final
+
+### Community 124 - "AppError.ts"
+Cohesion: 0.13
+Nodes (13): AppError, ConflictError, ErrorCode, ForeignKeyError, InternalError, isAppError(), OptimisticLockError, ServiceUnavailableError (+5 more)
 
 ### Community 125 - "Avance 10 — Auditoría exhaustiva, alineación visual con imágenes de referencia y reset de datos"
 Cohesion: 0.29
 Nodes (6): 0. Resumen ejecutivo, 1. Cómo se llegó aquí (cronología de la sesión), 2. Estado final verificado, 3. Qué NO cambió (deliberadamente), 4. Sin pendientes de alcance, Avance 10 — Auditoría exhaustiva, alineación visual con imágenes de referencia y reset de datos
 
-### Community 126 - "EntityDescriptor.ts"
-Cohesion: 0.33
-Nodes (4): AuditDescriptor, ColumnType, DetailRelationDescriptor, SoftDeleteDescriptor
+### Community 126 - "LiquidacionCxP.tsx"
+Cohesion: 0.13
+Nodes (14): ResumenLateral(), formatMoney(), BucketPago, ChequeoMatch, COLUMNS, FORMA_PAGO_OPCIONES, guardarUltimoPago(), leerUltimoPago() (+6 more)
 
-### Community 127 - "scripts"
+### Community 127 - "scalar"
+Cohesion: 0.14
+Nodes (13): ensureBodega(), Ids, inTwoWeeks, mesActual, PRECIOS, scalar(), Ids, inTwoWeeks (+5 more)
+
+### Community 128 - "ortografia.test.ts"
+Cohesion: 0.25
+Nodes (6): acentuar(), ACENTOS, checkNumero(), checkValue(), etiquetaDe(), RAIZ
+
+### Community 129 - "qa-busqueda-orden.mjs"
+Cohesion: 0.15
+Nodes (8): badResponses, fallos, HEADED, nuevo, results, roleArg, SCREENS, shotsArg
+
+### Community 130 - "searchSql.ts"
+Cohesion: 0.32
+Nodes (11): buildSearchClause(), condicionEtiquetaActivo(), condicionRef(), escaparLike(), esColumnaFecha(), esColumnaTexto(), norm(), normalizar() (+3 more)
+
+### Community 131 - "comparativo.int.test.ts"
+Cohesion: 0.29
+Nodes (5): ensureBodega(), Ids, inTwoWeeks, PRECIOS, state
+
+### Community 132 - "ComCrudService.ts"
+Cohesion: 0.23
+Nodes (6): CrudServiceOptions, ComCrudService, Datos, ReglaCampos, REGLAS, vacio()
+
+### Community 134 - "alcanceDepartamento.int.test.ts"
+Cohesion: 0.53
+Nodes (5): bearer(), crearSolicitud(), Fk, idsVisibles(), token()
+
+### Community 135 - "search.ts"
+Cohesion: 0.31
+Nodes (6): coincide(), filtrarFilas(), textoDeFila(), SearchSelect(), SearchSelectOption, react-dom
+
+### Community 136 - "qa-listas-con-buscador.mjs"
+Cohesion: 0.20
+Nodes (7): caja, combos, filtroCombo, grupo, page, res, shotsArg
+
+### Community 137 - "AdjuntoService.ts"
+Cohesion: 0.17
+Nodes (11): AdjuntoMeta, COLAS, enCola(), EXTENSIONES, FIRMAS, Manifiesto, maxBytes(), MIME_PERMITIDOS (+3 more)
+
+### Community 138 - "catalogsCrud.int.test.ts"
+Cohesion: 0.33
+Nodes (4): cases, CrudCase, ids, RefIds
+
+### Community 139 - "devDependencies"
+Cohesion: 0.15
+Nodes (13): devDependencies, jsdom, tailwindcss, @tailwindcss/vite, @testing-library/jest-dom, @testing-library/react, @testing-library/user-event, @types/react (+5 more)
+
+### Community 140 - "LiveNotifier.tsx"
+Cohesion: 0.16
+Nodes (9): BandejaEnVivo, DecisionEnVivo, LiveEvents, LiveConnection, LiveHandlers, LiveMessage, parseSse(), LiveNotifier() (+1 more)
+
+### Community 141 - "gen-ddl-limits.ts"
+Cohesion: 0.29
+Nodes (6): ddl, destino, Limite, nCols, raiz, tablas
+
+### Community 142 - "DownloadService.ts"
+Cohesion: 0.24
+Nodes (3): DocumentDownloadService, downloadService, triggerDownload()
+
+### Community 143 - "qa-panel-detalle.mjs"
+Cohesion: 0.22
+Nodes (4): mas, res, shotsArg, sorts
+
+### Community 144 - "BaseCrudController.ts"
+Cohesion: 0.13
+Nodes (13): UnauthorizedError, FilterOperator, BaseCrudController, extractVersion(), parseId(), auditContextOf(), readOnlyList(), listQuery() (+5 more)
+
+### Community 145 - "apiClient.ts"
+Cohesion: 0.12
+Nodes (11): api, ApiRequestError, client, guard(), toApiRequestError(), isAppError(), Page, QueryParams (+3 more)
+
+### Community 146 - "Auditoría del frontend (UX/UI, responsive, proporción áurea) y resiliencia de almacenamiento — 2026-10-06"
+Cohesion: 0.13
+Nodes (14): 1. MinIO ("sin conexión, no deja cargar"), 2. Idempotencia, 3. Evaluación del frontend (antes → ahora), 4. Autocompletado — el usuario no reescribe lo que el sistema ya tiene, 5. Pendiente / recomendaciones, Adenda — Agilidad, validación en vivo, delegación y resistencia (2026-10-06), Adenda — Borradores en el servidor y PDF formal (2026-10-06), Adenda — Lote UI/UX completo y ortografía (2026-10) (+6 more)
+
+### Community 147 - "LiquidacionService.ts"
+Cohesion: 0.17
+Nodes (11): BucketPagoProyectado, DIAS_MAX_PAGO_FUTURO, FacturaRow, LiquidacionService, LiquidarInput, ORDEN_BUCKETS, ProyeccionPagosResumen, TresWayMatchReport (+3 more)
+
+### Community 150 - "DelegacionRepository.ts"
+Cohesion: 0.29
+Nodes (5): binds(), delegacionRepository, DelegacionVigente, mapFila(), Row
+
+### Community 151 - "escasezSubscriber.ts"
+Cohesion: 0.26
+Nodes (10): onRecepcionReversada(), registerCxpSubscriber(), AlertaRow, ArticuloRow, onExistenciaActualizada(), registerEscasezSubscriber(), registerComprasSubscribers(), ExistenciaActualizadaPayload (+2 more)
+
+### Community 153 - "react"
+Cohesion: 0.11
+Nodes (7): Drawer(), esCampoDeTexto(), ErrorBoundary, Props, State, HelpContent, react
+
+### Community 154 - "entrar"
+Cohesion: 0.25
+Nodes (5): entrar(), entrar(), REGISTRAR, res, shotsArg
+
+### Community 157 - "app.ts"
+Cohesion: 0.18
+Nodes (10): adjuntoMaxBytes(), buildApp(), BorradorService, env(), loadDotenv(), errorHandler(), registerBorradorRoutes(), servicio (+2 more)
+
+### Community 158 - "Toast.tsx"
+Cohesion: 0.17
+Nodes (6): Ctx, ToastAction, ToastApi, ToastItem, ToastTone, TONE
+
+### Community 159 - "SolicitudPdfService.ts"
+Cohesion: 0.17
+Nodes (9): dinero(), PRIORIDAD, SolicitudPdfService, Doc, LetterheadOptions, MARGIN, PdfColumn, HitoTrazabilidad (+1 more)
+
+### Community 161 - "fastify"
+Cohesion: 0.22
+Nodes (6): envRaw, H, Ids, inTwoWeeks, s, fastify
+
+### Community 162 - "AuthContext.tsx"
+Cohesion: 0.16
+Nodes (9): AuthContext, AuthProvider(), boot(), AuthState, jwtExp(), Sesion, tokenVigente(), grants() (+1 more)
+
+### Community 163 - "analitica.ts"
+Cohesion: 0.27
+Nodes (9): comparativo, comparativoPdf, dashboard, idParam(), intQuery(), READ, registerComAnaliticaRoutes(), strQuery() (+1 more)
+
+### Community 164 - "aprobacionEnVivo.int.test.ts"
+Cohesion: 0.27
+Nodes (8): call(), dia(), Evento, fk, msg(), nuevaSolicitud(), Sesion, u
+
+### Community 165 - "qa-oficial-api.mjs"
+Cohesion: 0.28
+Nodes (6): api(), emp(), login(), res, sol(), tokens
+
+### Community 166 - "playwright"
+Cohesion: 0.20
+Nodes (6): playwright, res, shotsArg, ALTOS, PANTALLAS, res
+
+### Community 167 - "qa-lib.mjs"
+Cohesion: 0.22
+Nodes (6): BASE, PASS, ANCHOS, PANTALLAS, res, shotsArg
+
+### Community 168 - "delegacion.int.test.ts"
+Cohesion: 0.32
+Nodes (6): call(), dia(), fk, nuevaSolicitud(), Sesion, u
+
+### Community 169 - "App.tsx"
+Cohesion: 0.19
+Nodes (7): Suite(), clave(), encolarEnvio(), escribir(), esErrorDeConexion(), leer(), procesarCola()
+
+### Community 170 - "cxp.ts"
+Cohesion: 0.32
+Nodes (7): FormaPago, Permisos, CXP, idParam(), liquidacion, liquidarBody(), registerComCxpRoutes()
+
+### Community 171 - "qa-agilidad.mjs"
+Cohesion: 0.20
+Nodes (7): item, menu, p2, p3, page, rep, res
+
+### Community 172 - "ComparativoPdfService.ts"
+Cohesion: 0.38
+Nodes (3): ComparativoPdfService, money(), StoredFile
+
+### Community 173 - "SegAuthRepository.ts"
+Cohesion: 0.29
+Nodes (6): Accesos, AuthUserRow, EventoAcceso, Row, SesionRow, UsuarioDemoRow
+
+### Community 174 - "density.ts"
+Cohesion: 0.60
+Nodes (5): aplicar(), Densidad, initDensidad(), leer(), useDensidad()
+
+### Community 176 - "EntityDescriptor.ts"
+Cohesion: 0.29
+Nodes (5): AuditDescriptor, ColumnType, DetailRelationDescriptor, SearchRef, SoftDeleteDescriptor
+
+### Community 177 - "Trazabilidad.tsx"
+Cohesion: 0.50
+Nodes (4): ESTILO, Hito, Trazabilidad(), formatFechaHora()
+
+### Community 178 - "borradores.int.test.ts"
+Cohesion: 0.83
+Nodes (3): hdr(), listar(), put()
+
+### Community 180 - "scripts"
 Cohesion: 0.33
 Nodes (6): scripts, build, dev, preview, test, typecheck
 
-### Community 130 - "EntityDescriptor"
-Cohesion: 0.29
-Nodes (3): CrudServiceOptions, BuildOpts, EntityDescriptor
+### Community 181 - "tildes-db.ts"
+Cohesion: 0.40
+Nodes (4): dml, envRaw, pares, tablas
 
-### Community 133 - "dependencies"
-Cohesion: 0.67
-Nodes (3): dependencies, react, react-dom
+### Community 182 - "comFlujo.int.test.ts"
+Cohesion: 0.40
+Nodes (3): envRaw, H, Ids
+
+### Community 183 - "qa-oficial.mjs"
+Cohesion: 0.40
+Nodes (4): aqui, env, resumen, SUITES
 
 ## Knowledge Gaps
-- **796 isolated node(s):** `name`, `version`, `private`, `type`, `main` (+791 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1041 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1051 isolated node(s):** `name`, `version`, `private`, `type`, `main` (+1046 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1377 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `fastify` connect `fastify` to `referencias.ts`, `backend/package.json`, `OraclePool.ts`, `AppError.ts`, `seedFlujoDemo.ts`, `reportes.ts`, `authGuard.ts`, `adjuntos.ts`, `analitica.ts`, `transaccional.ts`, `authGuard`, `cxp.ts`, `routes/com/index.ts`, `app.ts`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
-- **Why does `ValidationError` connect `AuditContext` to `SolicitudCompraService.ts`, `referencias.ts`, `backend/package.json`, `NotFoundError`, `AuthService.ts`, `AppError.ts`, `WithDetails`, `oraclePool`, `AppError`, `authGuard`, `adjuntos.ts`, `AdjuntoService.ts`, `analitica.ts`, `transaccional.ts`, `cxp.ts`, `app.ts`?**
-  _High betweenness centrality (0.026) - this node is a cross-community bridge._
-- **Why does `oracledb` connect `oracledb` to `SolicitudCompraService.ts`, `backend/package.json`, `kardexSubscriber.ts`, `fastify`, `OraclePool.ts`, `AppError.ts`, `oraclePool`, `CompraReadRepository.ts`, `seedFlujoDemo.ts`?**
-  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Why does `n()` connect `DocumentoList.tsx` to `messageOf`, `concurrencia.mjs`, `mapearTextos`, `qa-panel-detalle.mjs`?**
+  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `DataTable.tsx`, `frontend/package.json`, `search.ts`, `LiveNotifier.tsx`, `CompraServices.ts`, `Toast.tsx`, `AuthContext.tsx`, `messageOf`, `App.tsx`, `Dashboard.tsx`, `density.ts`, `Trazabilidad.tsx`, `DocumentoList.tsx`, `DocumentForm.tsx`, `CrudPage.tsx`, `outbox.ts`, `primitives.tsx`, `Field.tsx`, `AppShell`, `useNotificaciones.ts`, `RecepcionGuiada.tsx`, `DocumentoAppService`, `nav.ts`, `RefContext.tsx`, `DataTable.test.tsx`, `http`, `LiquidacionCxP.tsx`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Why does `ValidationError` connect `ValidationError` to `referencias.ts`, `searchSql.ts`, `backend/package.json`, `AdjuntoService.ts`, `mapOracleError`, `BaseCrudController.ts`, `LiquidacionService.ts`, `adjuntos.ts`, `AdjuntoService`, `app.ts`, `analitica.ts`, `OrdenCompraService`, `cxp.ts`, `BaseOracleRepository`, `SolicitudCompraService.ts`, `transaccional.ts`, `ComparativoService.ts`, `Validacion`, `AuditContext`, `AuthService.ts`, `BorradorRepository.ts`, `authGuard.ts`, `AppError.ts`?**
+  _High betweenness centrality (0.022) - this node is a cross-community bridge._
 - **What connects `name`, `version`, `private` to the rest of the system?**
-  _796 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `SEG_USUARIO` be split into smaller, more focused modules?**
-  _Cohesion score 0.06833457804331591 - nodes in this community are weakly interconnected._
+  _1051 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `SCRIPT_DDL.sql` be split into smaller, more focused modules?**
+  _Cohesion score 0.0664869721473495 - nodes in this community are weakly interconnected._
 - **Should `DataTable.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.09655172413793103 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0967741935483871 - nodes in this community are weakly interconnected._
 - **Should `HttpClient` be split into smaller, more focused modules?**
-  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10121457489878542 - nodes in this community are weakly interconnected._

@@ -13,6 +13,8 @@
  * Herencia de TransactionalService para la escritura de criterios.
  */
 
+import { puntuarRenglon, type SugerenciaRenglon } from "../../compras/adjudicacionSugerida.js";
+import { ReporteService } from "./ReporteService.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
   NotFoundError,
@@ -30,6 +32,7 @@ import {
   type HistorialResumen,
 } from "../../../dal/repositories/com/CompraReadRepository.js";
 import { TransactionalService } from "../../support/TransactionalService.js";
+import { validarRangoFechas } from "../../compras/reglasDocumentos.js";
 
 export interface CotizacionEnComparativo {
   readonly idCotizacion: number;
@@ -117,6 +120,36 @@ export class ComparativoService extends TransactionalService {
     };
   }
 
+  /**
+   * Sugerencia de adjudicacion por renglon aun sin adjudicar: pondera precio, confiabilidad historica
+   * del proveedor y credito (ver `adjudicacionSugerida.ts`). No adjudica nada: solo propone.
+   */
+  public async sugerenciaAdjudicacion(idSolicitud: number): Promise<{
+    readonly idSolicitud: number;
+    readonly renglones: readonly (SugerenciaRenglon & { idSolicitudDetalle: number; descripcion: string })[];
+  }> {
+    const comp = await this.comparativoSolicitud(idSolicitud);
+    const riesgo = await new ReporteService().riesgoProveedores();
+    const conf = new Map<number, number>(riesgo.proveedores.map((p) => [p.idProveedor, p.score]));
+    const renglones = comp.lineas
+      .filter((l) => l.adjudicadaIdCotizacionDetalle === null)
+      .map((l) => ({
+        idSolicitudDetalle: l.idSolicitudDetalle,
+        descripcion: l.descripcion,
+        ...puntuarRenglon(
+          l.cotizaciones.map((c) => ({
+            idCotizacionDetalle: c.idCotizacionDetalle,
+            idProveedor: c.idProveedor,
+            proveedor: c.proveedor,
+            precioNetoMoneda: c.precioNetoMoneda,
+            condicionPagoDias: c.condicionPagoDias,
+          })),
+          (idProveedor) => conf.get(idProveedor) ?? null,
+        ),
+      }));
+    return { idSolicitud, renglones };
+  }
+
   public async listarCriterios(
     idSolicitud: number,
   ): Promise<readonly CriterioComparativo[]> {
@@ -185,8 +218,9 @@ export class ComparativoService extends TransactionalService {
     if (raw.idArticulo !== undefined && Number.isFinite(raw.idArticulo)) {
       query.idArticulo = raw.idArticulo;
     }
-    if (raw.desde !== undefined && raw.desde !== "") query.desde = raw.desde;
-    if (raw.hasta !== undefined && raw.hasta !== "") query.hasta = raw.hasta;
+    const rango = validarRangoFechas(raw.desde, raw.hasta);
+    if (rango.desde !== undefined) query.desde = rango.desde;
+    if (rango.hasta !== undefined) query.hasta = rango.hasta;
 
     const { rows, total, resumen } = await this.read.historialPrecios(query);
     return {

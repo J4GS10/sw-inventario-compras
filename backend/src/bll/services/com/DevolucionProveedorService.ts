@@ -6,6 +6,7 @@
  * kardex correspondiente).
  */
 
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
   BusinessRuleError,
@@ -13,6 +14,10 @@ import {
   ValidationError,
 } from "../../../common/errors/AppError.js";
 import type { PageQuery, Paginated } from "../../../common/types/Query.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { MAX_LINEAS, devolvibleDeLinea } from "../../compras/reglasDocumentos.js";
+import { normalizePageQuery } from "../../../common/types/Query.js";
+import { repositoryFactory } from "../../../dal/repositories/RepositoryFactory.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type {
@@ -44,6 +49,12 @@ export class DevolucionProveedorService extends TransactionalService {
 
   private readonly recepcionRepo = recepcionRepository();
 
+  private readonly devDetalleRepo = repositoryFactory().get<
+    { idRecepcionDetalle: number; cantidadDevuelta: number },
+    object,
+    object
+  >("devolucionDetalle");
+
   public async listar(query: PageQuery): Promise<Paginated<DevolucionProveedor>> {
     return this.repo.findAll(query) as Promise<Paginated<DevolucionProveedor>>;
   }
@@ -73,7 +84,7 @@ export class DevolucionProveedorService extends TransactionalService {
       const hoy = new Date().toISOString().slice(0, 10);
       if (dia !== "" && dia !== hoy) {
         throw new BusinessRuleError(
-          "Solo se puede eliminar una devolucion el mismo dia en que se registro.",
+          "Solo se puede eliminar una devolución el mismo día en que se registró.",
         );
       }
       await this.repo.softDeleteWithDetails(id, ctx, conn);
@@ -86,31 +97,41 @@ export class DevolucionProveedorService extends TransactionalService {
     ctx: AuditContext,
   ): Promise<WithDetails<DevolucionProveedor, DevolucionDetalle>> {
     const b = this.asObject(body);
-    const idRecepcion = Number(b["idRecepcion"]);
-    const motivo = String(b["motivo"] ?? "");
-    const idEmpleadoSolicita = Number(b["idEmpleadoSolicita"]);
     const lineasRaw = Array.isArray(b["lineas"]) ? b["lineas"] : [];
-    if (
-      !Number.isInteger(idRecepcion) ||
-      motivo === "" ||
-      !Number.isInteger(idEmpleadoSolicita) ||
-      lineasRaw.length === 0
-    ) {
-      throw new ValidationError("Datos de devolucion invalidos", [
-        { message: "idRecepcion, motivo, idEmpleadoSolicita y lineas son obligatorios" },
-      ]);
-    }
-    const lineas: LineaInput[] = lineasRaw.map((raw, i) => {
-      const l = raw as Record<string, unknown>;
-      const idRecepcionDetalle = Number(l["idRecepcionDetalle"]);
-      const cantidadDevuelta = Number(l["cantidadDevuelta"]);
-      if (!Number.isInteger(idRecepcionDetalle) || !(cantidadDevuelta > 0)) {
-        throw new ValidationError(`Linea ${i + 1} invalida`);
+
+    const v = new Validacion();
+    const idRecepcionV = v.id("idRecepcion", "La recepción", b["idRecepcion"]);
+    const motivoV = v.texto("motivo", "El motivo", b["motivo"], { min: 3, max: 255 });
+    const idEmpleadoV = v.id("idEmpleadoSolicita", "El empleado que solicita", b["idEmpleadoSolicita"]);
+    if (lineasRaw.length === 0) v.error("lineas", "La devolución debe incluir al menos una línea");
+    if (lineasRaw.length > MAX_LINEAS) v.error("lineas", `La devolución admite máximo ${MAX_LINEAS} líneas`);
+    const vistas = new Set<number>();
+    const lineas: LineaInput[] = [];
+    lineasRaw.forEach((raw, i) => {
+      const l = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const n = i + 1;
+      const idRecepcionDetalle = v.id(`lineas[${i}].idRecepcionDetalle`, `Línea ${n}: la línea de la recepción`, l["idRecepcionDetalle"]);
+      const cantidadDevuelta = v.positivo(`lineas[${i}].cantidadDevuelta`, `Línea ${n}: la cantidad devuelta`, l["cantidadDevuelta"]);
+      if (idRecepcionDetalle !== null) {
+        if (vistas.has(idRecepcionDetalle)) {
+          v.error(`lineas[${i}].idRecepcionDetalle`, `Línea ${n}: la línea de recepción ${idRecepcionDetalle} está repetida`);
+        }
+        vistas.add(idRecepcionDetalle);
       }
-      return { idRecepcionDetalle, cantidadDevuelta };
+      if (idRecepcionDetalle !== null && cantidadDevuelta !== null) {
+        lineas.push({ idRecepcionDetalle, cantidadDevuelta });
+      }
     });
+    v.lanzarSiHay("Devolución inválida");
+    const idRecepcion = idRecepcionV as number;
+    const motivo = motivoV as string;
+    const idEmpleadoSolicita = idEmpleadoV as number;
 
     return this.runInTransaction(async ({ conn, enqueueEvent }) => {
+      // Serializa las devoluciones de ESTA recepcion: el acumulado devuelto se lee
+      // y se escribe dentro del mismo bloqueo (sin el, N peticiones simultaneas
+      // devolvian cada una "dentro del tope" y se superaba lo recibido).
+      await this.recepcionRepo.lockById(idRecepcion, conn);
       const recepcion = (await this.recepcionRepo.findById(
         idRecepcion,
         conn,
@@ -127,13 +148,28 @@ export class DevolucionProveedorService extends TransactionalService {
         const rec = porId.get(linea.idRecepcionDetalle);
         if (rec === undefined) {
           throw new ValidationError(
-            `La linea de recepcion ${linea.idRecepcionDetalle} no pertenece a la recepcion ${idRecepcion}`,
+            `La línea de recepción ${linea.idRecepcionDetalle} no pertenece a la recepción ${idRecepcion}`,
           );
         }
-        if (linea.cantidadDevuelta > rec.cantidadRecibida) {
+        // Acumulado: lo ya devuelto en devoluciones anteriores de esta misma linea
+        // cuenta contra lo recibido (antes se podia devolver la misma mercaderia
+        // varias veces, cada una "dentro del tope").
+        const previas = await this.devDetalleRepo.findAll(
+          normalizePageQuery({
+            page: 1,
+            pageSize: 500,
+            filters: [{ prop: "idRecepcionDetalle", operator: "eq", value: linea.idRecepcionDetalle }],
+          }),
+          conn,
+        );
+        const yaDevuelto = previas.data.reduce((acc, d) => acc + Number(d.cantidadDevuelta), 0);
+        const disponible = devolvibleDeLinea(rec.cantidadRecibida, yaDevuelto);
+        if (linea.cantidadDevuelta > disponible) {
           throw new BusinessRuleError(
-            `No se pueden devolver ${linea.cantidadDevuelta} de la linea ${linea.idRecepcionDetalle}: ` +
-              `solo se recibieron ${rec.cantidadRecibida}`,
+            disponible === 0
+              ? `La línea ${linea.idRecepcionDetalle} ya fue devuelta por completo (${rec.cantidadRecibida} recibidas).`
+              : `No se pueden devolver ${linea.cantidadDevuelta} de la línea ${linea.idRecepcionDetalle}: ` +
+                `se recibieron ${rec.cantidadRecibida}, ya se devolvieron ${yaDevuelto} y quedan ${disponible} por devolver.`,
           );
         }
       }
@@ -156,6 +192,7 @@ export class DevolucionProveedorService extends TransactionalService {
         ),
       );
 
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       const created = (await this.repo.createWithDetails(
         cabecera,
         detalles,

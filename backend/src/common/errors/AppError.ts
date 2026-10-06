@@ -17,6 +17,8 @@ export type ErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "LOCKED"
+  | "UNAVAILABLE"
+  | "RATE_LIMITED"
   | "INTERNAL";
 
 export interface ErrorDetail {
@@ -127,7 +129,7 @@ export class ForbiddenError extends AppError {
   public readonly code = "FORBIDDEN" as const;
   public readonly httpStatus = 403;
 
-  constructor(message = "No autorizado para esta operacion") {
+  constructor(message = "No autorizado para esta operación") {
     super(message);
   }
 }
@@ -138,6 +140,32 @@ export class LockedError extends AppError {
   public readonly httpStatus = 423;
 
   constructor(message = "Cuenta bloqueada temporalmente") {
+    super(message);
+  }
+}
+
+/** La base de datos (u otra dependencia) no responde: la operacion se puede reintentar. */
+export class ServiceUnavailableError extends AppError {
+  public readonly code = "UNAVAILABLE" as const;
+  public readonly httpStatus = 503;
+
+  constructor(
+    message = "El servicio no está disponible en este momento. Reintente en unos segundos.",
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+  }
+}
+
+/** Demasiados intentos en una ventana de tiempo. */
+export class TooManyRequestsError extends AppError {
+  public readonly code = "RATE_LIMITED" as const;
+  public readonly httpStatus = 429;
+
+  constructor(
+    message = "Demasiados intentos. Espere unos minutos antes de reintentar.",
+    public readonly retryAfterSeconds = 60,
+  ) {
     super(message);
   }
 }

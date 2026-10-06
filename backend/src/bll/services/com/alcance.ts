@@ -11,6 +11,7 @@
 import { hasPermiso } from "../../../common/auth/permissions.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import type { CompraReadRepository } from "../../../dal/repositories/com/CompraReadRepository.js";
+import { delegacionService } from "./DelegacionService.js";
 
 /** Roles que operan sobre TODO el modulo (no se acotan por departamento). */
 export const ROLES_SIN_ALCANCE = [
@@ -32,11 +33,29 @@ export async function empleadosEnAlcance(
   read: CompraReadRepository,
 ): Promise<readonly number[] | null> {
   if (ctx === undefined || hasPermiso(ctx.permisos, "*")) return null;
-  const roles = ctx.roles ?? [];
+  const propio = await alcanceDe(ctx.empleadoId, ctx.roles ?? [], read);
+  if (propio === null) return null;
+  // Delegaciones vigentes: el alcance del delegante se suma mientras dure (consulta a la base: revocar es inmediato).
+  const delegadas = await delegacionService.efectivas(ctx.empleadoId);
+  if (delegadas.length === 0) return propio;
+  const union = new Set<number>(propio);
+  for (const d of delegadas) {
+    const a = await alcanceDe(d.idEmpleadoDelegante, d.roles, read);
+    if (a === null) return null;
+    for (const e of a) union.add(e);
+  }
+  return [...union];
+}
+
+/** Alcance de UNA identidad (empleado + roles). null = sin restriccion. */
+async function alcanceDe(
+  empleadoId: number | undefined,
+  roles: readonly string[],
+  read: CompraReadRepository,
+): Promise<readonly number[] | null> {
   if (roles.some((r) => (ROLES_SIN_ALCANCE as readonly string[]).includes(r))) {
     return null;
   }
-  const empleadoId = ctx.empleadoId;
   if (empleadoId === undefined || empleadoId <= 0) return null;
 
   if (roles.includes("GERENTE_AREA")) {

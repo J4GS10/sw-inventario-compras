@@ -43,7 +43,7 @@ const col = (key: string, header: string, opts: Partial<Column<Row>> = {}): Colu
 const COLUMNS: readonly Column<Row>[] = [
   col("idOrdenCompra", "Orden", { refKind: "docOrden", width: 100, sortable: false }),
   col("proveedor", "Proveedor", { grow: true }),
-  col("fechaRecepcion", "Recepcion", { type: "date" }),
+  col("fechaRecepcion", "Recepción", { type: "date" }),
   col("montoTotal", "Monto a liquidar", { type: "money" }),
   col("estado", "Estado", { type: "estado" }),
 ];
@@ -85,16 +85,16 @@ export default function LiquidacionCxP(): React.ReactElement {
     <div className="grid grid-cols-1 gap-4">
       <PageHeader
         title="Cuentas por pagar"
-        subtitle="Facturas de proveedor con recepcion fisica ya registrada, listas para liquidar."
+        subtitle="Facturas de proveedor con recepción física ya registrada, listas para liquidar."
       />
 
       {proyeccion !== null && (
         <Card>
           <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
-            Proyeccion de flujo de pagos
+            Proyección de flujo de pagos
           </h3>
           <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
-            Cuanto hay que pagar y cuando — suma exacta de lo pendiente, organizada por cuando vence.
+            Cuánto hay que pagar y cuándo — suma exacta de lo pendiente, organizada por cuándo vence.
           </p>
           <TimeBars
             data={proyeccion.buckets.map((b) => ({ label: b.etiqueta, value: b.monto }))}
@@ -122,8 +122,12 @@ export default function LiquidacionCxP(): React.ReactElement {
         rowKey={(r) => Number(r["idFacturaProveedor"])}
         loading={loading}
         actions={actions}
+        localSearch={{
+          placeholder: "Buscar por proveedor, orden (OC-12), estado, monto…",
+          text: (r) => `${Object.values(r).filter((v) => typeof v !== "object").join(" ")} OC-${String(r["idOrdenCompra"] ?? "")}`,
+        }}
         emptyTitle="No hay facturas pendientes de liquidar"
-        emptyHint="Aparecen aqui automaticamente cuando Bodega registra una recepcion."
+        emptyHint="Aparecen aquí automáticamente cuando Bodega registra una recepción."
         page={1}
         totalPages={1}
         total={rows.length}
@@ -190,6 +194,23 @@ const FORMA_PAGO_OPCIONES = [
   { value: "CHEQUE", label: "Cheque" },
 ];
 
+const CLAVE_ULTIMO_PAGO = "erp.cxp.ultimoPago";
+function leerUltimoPago(): { formaPago?: string; banco?: string } {
+  try {
+    const raw = window.localStorage.getItem(CLAVE_ULTIMO_PAGO);
+    return raw === null ? {} : (JSON.parse(raw) as { formaPago?: string; banco?: string });
+  } catch {
+    return {};
+  }
+}
+function guardarUltimoPago(formaPago: string, banco: string): void {
+  try {
+    window.localStorage.setItem(CLAVE_ULTIMO_PAGO, JSON.stringify({ formaPago, banco }));
+  } catch {
+    /* sin almacenamiento: no se recuerda */
+  }
+}
+
 function LiquidarModal(props: {
   idFacturaProveedor: number;
   onClose: () => void;
@@ -213,13 +234,23 @@ function LiquidarModal(props: {
         if (!alive) return;
         setFactura(body.data.factura);
         setMatch(body.data.tresWayMatch);
+        // Lo que el sistema ya sabe viene puesto: monto y fechas de la factura; pago el dia del vencimiento
+        // (o hoy si ya vencio); forma de pago y banco, los de la ultima liquidacion de este usuario.
+        const hoy = new Date().toLocaleDateString("en-CA");
+        const venc = String(body.data.factura["fechaVencimiento"] ?? "").slice(0, 10);
+        const docu = String(body.data.factura["fechaDocumento"] ?? "").slice(0, 10);
+        const limite = new Date(Date.now() + 90 * 864e5).toLocaleDateString("en-CA");
+        let fechaPago = venc !== "" && venc > hoy && venc <= limite ? venc : hoy;
+        if (docu !== "" && fechaPago < docu) fechaPago = docu;
+        const rec = leerUltimoPago();
         setForm((f) => ({
           ...f,
           montoTotal: String(body.data.factura["montoTotal"] ?? ""),
-          formaPago: "TRANSFERENCIA",
+          formaPago: rec.formaPago ?? "TRANSFERENCIA",
+          ...(rec.banco !== undefined ? { banco: rec.banco } : {}),
           fechaEmision: String(body.data.factura["fechaEmision"] ?? "").slice(0, 10),
-          fechaDocumento: String(body.data.factura["fechaDocumento"] ?? "").slice(0, 10),
-          fechaPago: new Date().toISOString().slice(0, 10),
+          fechaDocumento: docu,
+          fechaPago,
         }));
       } catch (e: unknown) {
         toast.error(messageOf(e));
@@ -237,6 +268,16 @@ function LiquidarModal(props: {
   function set(name: string, v: FieldValue): void {
     setForm((f) => ({ ...f, [name]: v }));
   }
+
+  // Aviso inmediato: el monto tecleado se compara con lo que el sistema calculo de la recepcion.
+  const ayudaMonto = (() => {
+    if (match === null) return undefined;
+    const sistema = match.recepcionFactura.montoSistema;
+    const n = Number(form["montoTotal"]);
+    if (!Number.isFinite(n) || form["montoTotal"] === "") return `Sistema: ${formatMoney(sistema)}`;
+    const dif = Number((n - sistema).toFixed(2));
+    return Math.abs(dif) < 0.01 ? "Coincide con la recepción ✓" : `Difiere del sistema (${formatMoney(sistema)}) en ${formatMoney(dif)} — revísalo`;
+  })();
 
   async function liquidar(): Promise<void> {
     const requeridos = [
@@ -270,6 +311,7 @@ function LiquidarModal(props: {
         numeroReferencia: form["numeroReferencia"],
         fechaPago: form["fechaPago"],
       });
+      guardarUltimoPago(String(form["formaPago"]), String(form["banco"]));
       toast.success("Factura liquidada — orden marcada como PAGADA");
       props.onSuccess();
     } catch (e: unknown) {
@@ -304,7 +346,7 @@ function LiquidarModal(props: {
         <div className="grid gap-4">
           <section className="grid gap-2">
             <h3 className="text-[0.78rem] font-semibold uppercase tracking-wide" style={{ color: "var(--color-ink-soft)" }}>
-              3-way match — Solicitud → Orden de compra → Recepcion
+              3-way match — Solicitud → Orden de compra → Recepción
             </h3>
             <div
               className="surface-2 grid gap-2 rounded-xl p-3"
@@ -317,17 +359,17 @@ function LiquidarModal(props: {
               />
               <ChequeoFila
                 ok={match.ordenRecepcion.ok}
-                titulo="Orden → Recepcion"
+                titulo="Orden → Recepción"
                 detalle={`${match.ordenRecepcion.lineasValidas} de ${match.ordenRecepcion.lineasRecepcion} renglones recibidos corresponden a la OC`}
               />
               <ChequeoFila
                 ok={match.recepcionFactura.ok}
-                titulo="Recepcion → Factura"
+                titulo="Recepción → Factura"
                 detalle={`Sistema ${formatMoney(match.recepcionFactura.montoSistema)} vs. factura ${formatMoney(match.recepcionFactura.montoFactura)} (diferencia ${formatMoney(match.recepcionFactura.diferencia)})`}
               />
               {!match.ok && (
                 <p className="text-[0.78rem]" style={{ color: "var(--color-warning)" }}>
-                  Hay una diferencia fuera de tolerancia — puedes continuar, pero revisala antes de confirmar.
+                  Hay una diferencia fuera de tolerancia — puedes continuar, pero revísala antes de confirmar.
                 </p>
               )}
             </div>
@@ -338,11 +380,11 @@ function LiquidarModal(props: {
               Datos de la factura (FEL)
             </h3>
             <FormGrid>
-              <Field def={{ name: "numeroDte", label: "Numero de DTE", kind: "code", required: true }} value={form["numeroDte"] ?? ""} onChange={(v) => set("numeroDte", v)} showErrors={showErrors} />
+              <Field def={{ name: "numeroDte", label: "Número de DTE", kind: "code", required: true }} value={form["numeroDte"] ?? ""} onChange={(v) => set("numeroDte", v)} showErrors={showErrors} />
               <Field def={{ name: "serieDte", label: "Serie", kind: "code", required: true }} value={form["serieDte"] ?? ""} onChange={(v) => set("serieDte", v)} showErrors={showErrors} />
-              <Field def={{ name: "fechaEmision", label: "Fecha de emision", kind: "date", required: true }} value={form["fechaEmision"] ?? ""} onChange={(v) => set("fechaEmision", v)} showErrors={showErrors} />
-              <Field def={{ name: "fechaDocumento", label: "Fecha del documento", kind: "date", required: true }} value={form["fechaDocumento"] ?? ""} onChange={(v) => set("fechaDocumento", v)} showErrors={showErrors} />
-              <Field def={{ name: "montoTotal", label: "Monto total", kind: "money", required: true }} value={form["montoTotal"] ?? ""} onChange={(v) => set("montoTotal", v)} showErrors={showErrors} />
+              <Field def={{ name: "fechaEmision", label: "Fecha de emisión", kind: "date", required: true, maxDate: "today", help: "No puede ser futura." }} value={form["fechaEmision"] ?? ""} onChange={(v) => set("fechaEmision", v)} showErrors={showErrors} values={form} />
+              <Field def={{ name: "fechaDocumento", label: "Fecha del documento", kind: "date", required: true, maxDate: "today", help: "No puede ser futura ni anterior a la orden de compra." }} value={form["fechaDocumento"] ?? ""} onChange={(v) => set("fechaDocumento", v)} showErrors={showErrors} values={form} />
+              <Field def={{ name: "montoTotal", label: "Monto total", kind: "money", required: true, positive: true, help: ayudaMonto }} value={form["montoTotal"] ?? ""} onChange={(v) => set("montoTotal", v)} showErrors={showErrors} />
             </FormGrid>
           </section>
 
@@ -361,16 +403,16 @@ function LiquidarModal(props: {
               <Field
                 def={{
                   name: "numeroReferencia",
-                  label: "Numero de referencia",
+                  label: "Número de referencia",
                   kind: "code",
                   required: true,
-                  help: form["formaPago"] === "CHEQUE" ? "Numero de cheque" : "Numero/confirmacion de la transferencia",
+                  help: form["formaPago"] === "CHEQUE" ? "Número de cheque" : "Número/confirmación de la transferencia",
                 }}
                 value={form["numeroReferencia"] ?? ""}
                 onChange={(v) => set("numeroReferencia", v)}
                 showErrors={showErrors}
               />
-              <Field def={{ name: "fechaPago", label: "Fecha de pago", kind: "date", required: true }} value={form["fechaPago"] ?? ""} onChange={(v) => set("fechaPago", v)} showErrors={showErrors} />
+              <Field def={{ name: "fechaPago", label: "Fecha de pago", kind: "date", required: true, minDateField: "fechaDocumento", help: "No puede ser anterior a la fecha del documento." }} value={form["fechaPago"] ?? ""} onChange={(v) => set("fechaPago", v)} showErrors={showErrors} values={form} />
             </FormGrid>
           </section>
         </div>

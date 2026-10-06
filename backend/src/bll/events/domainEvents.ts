@@ -83,6 +83,11 @@ export interface SolicitudAprobacionPayload {
   readonly estadoAnterior: string;
   readonly estadoNuevo: string;
   readonly nivelJerarquico: number;
+  /** Empleado que decidio. */
   readonly idEmpleado: number;
   readonly userId: number;
+  /** Duenio de la solicitud: a quien se le avisa la decision. */
+  readonly idEmpleadoSolicitante: number;
+  /** Motivo/comentario escrito por quien decidio (obligatorio al rechazar). */
+  readonly comentario: string | null;
 }

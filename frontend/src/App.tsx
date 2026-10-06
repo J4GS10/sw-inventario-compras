@@ -3,13 +3,17 @@
  * (sidebar + topbar) + enrutado de vistas + command palette (Ctrl+K) + toasts.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { sincronizarBorradores } from "./core/borradores.js";
+import { procesarCola } from "./core/outbox.js";
+import { eventBus, AppEvents } from "./core/EventBus.js";
 import { AppShell } from "./ui/AppShell.js";
 import { CommandPalette, useCommandPalette } from "./ui/CommandPalette.js";
 import { visibleLeaves, type NavLeaf } from "./nav.js";
 import { AuthProvider, useAuth } from "./core/auth/AuthContext.js";
 import { RefProvider } from "./core/RefContext.js";
 import { useToast } from "./ui/Toast.js";
+import LiveNotifier from "./ui/LiveNotifier.js";
 import LoginScreen from "./modules/LoginScreen.js";
 import Dashboard from "./modules/Dashboard.js";
 import { CatalogScreen } from "./modules/compras/catalogPages.js";
@@ -36,7 +40,7 @@ function Gate(): React.ReactElement {
         className="grid min-h-[100dvh] place-items-center"
         style={{ background: "var(--color-surface-2)", color: "var(--color-ink-faint)" }}
       >
-        Cargando sesion...
+        Cargando sesión...
       </div>
     );
   }
@@ -49,10 +53,73 @@ function Gate(): React.ReactElement {
 }
 
 function Suite(): React.ReactElement {
-  const { hasAnyPerm } = useAuth();
+  const { hasAnyPerm, sesion } = useAuth();
   const toast = useToast();
   const leaves = useMemo(() => visibleLeaves(hasAnyPerm), [hasAnyPerm]);
-  const [active, setActive] = useState<NavLeaf>(() => leaves[0] ?? { id: "none", label: "", kind: "dashboard", icon: "grid" });
+  // La pantalla donde iba el usuario se recuerda: tras un reinicio o cierre vuelve a ella, no al inicio.
+  const clavePantalla = `erp.pantalla.${sesion?.idUsuario ?? 0}`;
+  const [active, setActiveRaw] = useState<NavLeaf>(() => {
+    let guardada: string | null = null;
+    try {
+      guardada = window.localStorage.getItem(clavePantalla);
+    } catch {
+      /* sin almacenamiento */
+    }
+    return (
+      leaves.find((l) => l.id === guardada) ??
+      leaves[0] ?? { id: "none", label: "", kind: "dashboard", icon: "grid" }
+    );
+  });
+  const setActive = (leaf: NavLeaf): void => {
+    setActiveRaw(leaf);
+    try {
+      window.localStorage.setItem(clavePantalla, leaf.id);
+    } catch {
+      /* sin almacenamiento */
+    }
+  };
+  // Borradores respaldados en el servidor: al entrar, al volver a la pestana y al recuperar la red,
+  // el trabajo a medias de este usuario se concilia con el servidor (asi sigue en cualquier equipo).
+  const idUsuario = sesion?.idUsuario ?? 0;
+  useEffect(() => {
+    if (idUsuario === 0) return;
+    let ultimo = 0;
+    const sync = (): void => {
+      if (Date.now() - ultimo < 30_000) return;
+      ultimo = Date.now();
+      void sincronizarBorradores(idUsuario);
+    };
+    sync();
+    const alVolver = (): void => {
+      if (document.visibilityState === "visible") sync();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("online", sync);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("online", sync);
+    };
+  }, [idUsuario]);
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  // Cola de envios sin conexion: se vacia sola al volver la red (y cada 20 s mientras haya algo pendiente).
+  useEffect(() => {
+    if (idUsuario === 0) return;
+    const vaciar = (): void => {
+      void procesarCola(idUsuario).then((r) => {
+        for (const e of r.enviados) toastRef.current.success(`Se envió tu ${e.item.titulo.toLowerCase()} que estaba pendiente`);
+        for (const x of r.rechazados) toastRef.current.error(`No se pudo registrar tu ${x.item.titulo.toLowerCase()} pendiente: ${x.motivo}`);
+        if (r.enviados.length > 0) eventBus.emit(AppEvents.EntityCreated, { resource: "cola" });
+      });
+    };
+    vaciar();
+    const t = window.setInterval(vaciar, 20_000);
+    window.addEventListener("online", vaciar);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener("online", vaciar);
+    };
+  }, [idUsuario]);
   const [comparativoTick, setComparativoTick] = useState(0);
   const palette = useCommandPalette();
 
@@ -85,6 +152,7 @@ function Suite(): React.ReactElement {
 
   return (
     <>
+      <LiveNotifier />
       <AppShell
         activeId={active.id}
         onNavigate={navigate}

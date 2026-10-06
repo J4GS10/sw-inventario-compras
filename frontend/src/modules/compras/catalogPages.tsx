@@ -28,7 +28,7 @@ const REF_CATEGORIAS = { path: "/api/com/ref/categorias-articulo", value: "idCat
 const REF_UNIDADES = { path: "/api/com/ref/unidades-medida", value: "idUnidadMedida", label: "nombre" };
 
 const TIPO_ARTICULO_OPCIONES: readonly SelectOption[] = [
-  { value: "MERCADERIA_VENTA", label: "Mercaderia de venta" },
+  { value: "MERCADERIA_VENTA", label: "Mercadería de venta" },
   { value: "ACTIVO_FIJO", label: "Activo fijo" },
   { value: "MATERIAL_USO_INTERNO", label: "Material de uso interno" },
   { value: "TIENDA_INTERNA_EMPLEADOS", label: "Tienda interna de empleados" },
@@ -48,27 +48,26 @@ const staticLabel = (options: readonly SelectOption[], code: unknown): string =>
 export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
   monedas: {
     title: "Monedas",
-    subtitle: "Divisas admitidas en ordenes de compra y cotizaciones.",
+    subtitle: "Divisas admitidas en órdenes de compra y cotizaciones.",
     basePath: "/api/com/monedas",
     idField: "idMoneda",
     writePerm: Permisos.CATALOGO_ADMIN,
-    searchField: "nombre",
-    searchPlaceholder: "Buscar monedas...",
+    searchPlaceholder: "Buscar por código, nombre, símbolo, activa/inactiva…",
     filterFields: [{ key: "activa", label: "Estado", options: [{ value: "S", label: "Activa" }, { value: "N", label: "Inactiva" }] }],
     columns: [
-      col("codigo", "Codigo", { sortable: true }),
+      col("codigo", "Código", { sortable: true }),
       col("nombre", "Nombre", { sortable: true }),
-      col("simbolo", "Simbolo"),
-      col("activa", "Activa", { render: (r) => (r["activa"] === true ? "Si" : "No") }),
+      col("simbolo", "Símbolo"),
+      col("activa", "Activa", { render: (r) => (r["activa"] === true ? "Sí" : "No") }),
     ],
     fields: [
-      { name: "codigo", label: "Codigo ISO", kind: "code", required: true, help: "3 letras (GTQ, USD…)" },
+      { name: "codigo", label: "Código ISO", kind: "code", required: true, help: "3 letras (GTQ, USD…)" },
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
-      { name: "simbolo", label: "Simbolo", kind: "code", help: "Q, $, EUR" },
-      { name: "activa", label: "Activa", kind: "switch" },
+      { name: "simbolo", label: "Símbolo", kind: "code", help: "Q, $, EUR" },
+      { name: "activa", label: "Activa", kind: "switch", defaultValue: "true" },
     ],
     help: {
-      title: "Monedas — para que sirve",
+      title: "Monedas — para qué sirve",
       body: (
         <>
           <p>
@@ -89,37 +88,24 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   proveedores: {
     title: "Proveedores",
-    subtitle: "Proveedores de mercaderia, activos y servicios.",
+    subtitle: "Proveedores de mercadería, activos y servicios.",
     basePath: "/api/com/proveedores",
     idField: "idProveedor",
-    searchField: "razonSocial",
-    searchPlaceholder: "Buscar proveedores...",
+    searchPlaceholder: "Buscar por razón social, NIT, comercial, correo, teléfono, activo/inactivo…",
     filterFields: [{ key: "estado", label: "Estado", options: estadoAI }],
     derivedTags: { path: "/api/com/ref/proveedores/familias", columnKey: "familias" },
-    stats: (rows, total, derivedTags) => {
-      const familias = new Set(Object.values(derivedTags).flat()).size;
-      const calificaciones = rows
-        .map((r) => calificacionProveedorEstrellas(r["calificacion"] as string | null))
-        .filter((n) => n > 0);
-      const promedio = calificaciones.length > 0 ? calificaciones.reduce((a, b) => a + b, 0) / calificaciones.length : 0;
-      return [
-        { icon: "users", tone: "brand", title: `${total} Proveedores`, subtitle: "Registrados en el sistema" },
-        { icon: "layers", tone: "success", title: `${familias || "—"}`, subtitle: familias > 0 ? "Familias de producto (en esta pagina)" : "Sin historial de compras aun" },
-        { icon: "award", tone: "warning", title: promedio > 0 ? `${promedio.toFixed(1)} / 5` : "—", subtitle: "Calificacion promedio" },
-      ];
-    },
     columns: [
       col("nit", "NIT", { sortable: true, width: 112 }),
-      col("razonSocial", "Razon social", { sortable: true, grow: true }),
+      col("razonSocial", "Razón social", { sortable: true, grow: true }),
       col("nombreComercial", "Nombre comercial", { width: 200, priority: "secondary" }),
       col("email", "Email", { width: 220, priority: "secondary" }),
       col("familias", "Familias de producto", { width: 220, priority: "secondary" }),
-      col("calificacion", "Calificacion", {
+      col("calificacion", "Calificación", {
         width: 130,
         render: (r) => <StarRating value={calificacionProveedorEstrellas(r["calificacion"] as string | null)} label={String(r["calificacion"] ?? "Nuevo")} />,
       }),
-      col("diasCredito", "Dias credito", { type: "num", sortable: true }),
       col("estado", "Estado", { type: "estado" }),
+      col("diasCredito", "Días crédito", { type: "num", sortable: true, priority: "secondary" }),
     ],
     formTabs: [
       { id: "gen", label: "Generales", fields: ["nit", "razonSocial", "nombreComercial", "estado"] },
@@ -128,19 +114,19 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
     ],
     fields: [
       { name: "nit", label: "NIT", kind: "nit", required: true },
-      { name: "razonSocial", label: "Razon social", kind: "name", required: true },
+      { name: "razonSocial", label: "Razón social", kind: "name", required: true },
       { name: "nombreComercial", label: "Nombre comercial", kind: "name" },
-      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true },
-      { name: "direccion", label: "Direccion", kind: "longText" },
-      { name: "telefono", label: "Telefono", kind: "phone" },
+      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true, defaultValue: "A" },
+      { name: "direccion", label: "Dirección", kind: "longText" },
+      { name: "telefono", label: "Teléfono", kind: "phone" },
       { name: "email", label: "Email", kind: "email" },
-      { name: "diasCredito", label: "Dias de credito", kind: "integer" },
-      { name: "calificacion", label: "Calificacion", kind: "select", optionsStatic: CALIFICACION_PROVEEDOR },
+      { name: "diasCredito", label: "Días de crédito", kind: "integer", defaultValue: "0" },
+      { name: "calificacion", label: "Calificación", kind: "select", optionsStatic: CALIFICACION_PROVEEDOR },
       { name: "cuentaBancaria", label: "Cuenta bancaria", kind: "shortText" },
       { name: "banco", label: "Banco", kind: "shortText" },
     ],
     help: {
-      title: "Proveedores — para que sirve",
+      title: "Proveedores — para qué sirve",
       body: (
         <>
           <p>
@@ -158,25 +144,24 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
   },
 
   categoriasCompra: {
-    title: "Categorias de compra",
-    subtitle: "Clasificacion de alto nivel del gasto de compras.",
+    title: "Categorías de compra",
+    subtitle: "Clasificación de alto nivel del gasto de compras.",
     basePath: "/api/com/categorias-compra",
     idField: "idCategoriaCompra",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar categorias...",
+    searchPlaceholder: "Buscar por nombre, descripción, activo/inactivo…",
     filterFields: [{ key: "estado", label: "Estado", options: estadoAI }],
     columns: [
       col("nombre", "Nombre", { sortable: true, grow: true }),
-      col("descripcion", "Descripcion", { priority: "secondary" }),
+      col("descripcion", "Descripción", { priority: "secondary" }),
       col("estado", "Estado", { type: "estado" }),
     ],
     fields: [
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
-      { name: "descripcion", label: "Descripcion", kind: "longText" },
-      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true },
+      { name: "descripcion", label: "Descripción", kind: "longText" },
+      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true, defaultValue: "A" },
     ],
     help: {
-      title: "Categorías de compra — para que sirve",
+      title: "Categorías de compra — para qué sirve",
       body: (
         <p>
           Clasificación de más alto nivel del gasto (p. ej. "Tecnología",
@@ -190,29 +175,28 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   gruposCompra: {
     title: "Grupos de compra",
-    subtitle: "Subdivisiones operativas dentro de cada categoria.",
+    subtitle: "Subdivisiones operativas dentro de cada categoría.",
     basePath: "/api/com/grupos-compra",
     idField: "idGrupoCompra",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar grupos de compra...",
+    searchPlaceholder: "Buscar por nombre o descripción…",
     columns: [
       col("nombre", "Nombre", { sortable: true, grow: true }),
-      col("idCategoriaCompra", "Categoria", { refKind: "categoriaCompra" }),
-      col("descripcion", "Descripcion", { priority: "secondary" }),
+      col("idCategoriaCompra", "Categoría", { refKind: "categoriaCompra" }),
+      col("descripcion", "Descripción", { priority: "secondary" }),
     ],
     fields: [
       {
         name: "idCategoriaCompra",
-        label: "Categoria",
+        label: "Categoría",
         kind: "select",
         required: true,
         optionsFrom: { path: "/api/com/categorias-compra", value: "idCategoriaCompra", label: "nombre" },
       },
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
-      { name: "descripcion", label: "Descripcion", kind: "longText" },
+      { name: "descripcion", label: "Descripción", kind: "longText" },
     ],
     help: {
-      title: "Grupos de compra — para que sirve",
+      title: "Grupos de compra — para qué sirve",
       body: (
         <p>
           Subdivisión operativa dentro de una Categoría de compra. Toda{" "}
@@ -226,21 +210,20 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   condicionesPago: {
     title: "Condiciones de pago",
-    subtitle: "Plazos de credito ofrecidos por los proveedores.",
+    subtitle: "Plazos de crédito ofrecidos por los proveedores.",
     basePath: "/api/com/condiciones-pago",
     idField: "idCondicionPago",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar condiciones de pago...",
+    searchPlaceholder: "Buscar por nombre…",
     columns: [
       col("nombre", "Nombre", { sortable: true }),
-      col("dias", "Dias", { type: "num", sortable: true }),
+      col("dias", "Días", { type: "num", sortable: true }),
     ],
     fields: [
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
-      { name: "dias", label: "Dias", kind: "integer", required: true },
+      { name: "dias", label: "Días", kind: "integer", required: true },
     ],
     help: {
-      title: "Condiciones de pago — para que sirve",
+      title: "Condiciones de pago — para qué sirve",
       body: (
         <p>
           Plazos de crédito que un proveedor ofrece (p. ej. "30 días",
@@ -253,22 +236,21 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
   },
 
   terminosEntrega: {
-    title: "Terminos de entrega",
+    title: "Términos de entrega",
     subtitle: "Tiempos estimados de entrega por modalidad.",
     basePath: "/api/com/terminos-entrega",
     idField: "idTerminoEntrega",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar terminos de entrega...",
+    searchPlaceholder: "Buscar por nombre o descripción…",
     columns: [
       col("nombre", "Nombre", { sortable: true }),
-      col("diasEstimados", "Dias estimados", { type: "num", sortable: true }),
+      col("diasEstimados", "Días estimados", { type: "num", sortable: true }),
     ],
     fields: [
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
-      { name: "diasEstimados", label: "Dias estimados", kind: "integer", required: true },
+      { name: "diasEstimados", label: "Días estimados", kind: "integer", required: true },
     ],
     help: {
-      title: "Términos de entrega — para que sirve",
+      title: "Términos de entrega — para qué sirve",
       body: (
         <p>
           Modalidad y tiempo estimado de entrega (p. ej. "Entrega en
@@ -283,25 +265,24 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   centrosCosto: {
     title: "Centros de costo",
-    subtitle: "Imputacion contable de las compras.",
+    subtitle: "Imputación contable de las compras.",
     basePath: "/api/com/centros-costo",
     idField: "idCentroCosto",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar centros de costo...",
+    searchPlaceholder: "Buscar por código o nombre…",
     filterFields: [{ key: "estado", label: "Estado", options: estadoAI }],
     columns: [
-      col("codigo", "Codigo", { sortable: true }),
+      col("codigo", "Código", { sortable: true }),
       col("nombre", "Nombre", { sortable: true }),
       col("estado", "Estado", { type: "estado" }),
     ],
     fields: [
-      { name: "codigo", label: "Codigo", kind: "code", required: true },
+      { name: "codigo", label: "Código", kind: "code", required: true },
       { name: "nombre", label: "Nombre", kind: "shortText", required: true },
       { name: "idDepartamento", label: "Departamento", kind: "select", optionsFrom: REF_DEPARTAMENTOS },
-      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true },
+      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true, defaultValue: "A" },
     ],
     help: {
-      title: "Centros de costo — para que sirve",
+      title: "Centros de costo — para qué sirve",
       body: (
         <p>
           Imputación contable de una compra, ligada a un departamento.
@@ -314,16 +295,16 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   acuerdos: {
     title: "Acuerdos marco",
-    subtitle: "Precio fijo pactado con un proveedor para un articulo.",
+    subtitle: "Precio fijo pactado con un proveedor para un artículo.",
     basePath: "/api/com/acuerdos-proveedor",
     idField: "idAcuerdo",
     columns: [
       col("idProveedor", "Proveedor", { refKind: "proveedor", grow: true }),
-      col("idArticulo", "Articulo", { refKind: "articulo", width: 220 }),
+      col("idArticulo", "Artículo", { refKind: "articulo", width: 220 }),
       col("precioFijo", "Precio fijo", { type: "money" }),
       col("fechaInicio", "Desde", { type: "date", priority: "secondary" }),
       col("fechaFin", "Hasta", { type: "date", priority: "secondary" }),
-      col("activo", "Activo", { width: 84, render: (r) => (r["activo"] === true ? "Si" : "No") }),
+      col("activo", "Activo", { width: 84, render: (r) => (r["activo"] === true ? "Sí" : "No") }),
     ],
     fields: [
       {
@@ -333,14 +314,14 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
         required: true,
         optionsFrom: { path: "/api/com/proveedores", value: "idProveedor", label: "razonSocial" },
       },
-      { name: "idArticulo", label: "Articulo", kind: "select", required: true, optionsFrom: REF_ARTICULOS },
-      { name: "precioFijo", label: "Precio fijo", kind: "money" },
+      { name: "idArticulo", label: "Artículo", kind: "select", required: true, optionsFrom: REF_ARTICULOS },
+      { name: "precioFijo", label: "Precio fijo", kind: "money", positive: true },
       { name: "fechaInicio", label: "Vigente desde", kind: "datetime", required: true },
-      { name: "fechaFin", label: "Vigente hasta", kind: "datetime", required: true },
-      { name: "activo", label: "Activo", kind: "switch" },
+      { name: "fechaFin", label: "Vigente hasta", kind: "datetime", required: true, minDateField: "fechaInicio" },
+      { name: "activo", label: "Activo", kind: "switch", defaultValue: "true" },
     ],
     help: {
-      title: "Acuerdos marco — para que sirve",
+      title: "Acuerdos marco — para qué sirve",
       body: (
         <>
           <p>
@@ -360,14 +341,14 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
   },
 
   articuloProveedor: {
-    title: "Articulo-Proveedor",
-    subtitle: "Ultimo precio de compra por articulo y proveedor (respaldo cuando no hay acuerdo marco ni cotizacion adjudicada).",
+    title: "Artículo-Proveedor",
+    subtitle: "Último precio de compra por artículo y proveedor (respaldo cuando no hay acuerdo marco ni cotización adjudicada).",
     basePath: "/api/com/articulo-proveedor",
     idField: "idArticuloProveedor",
     columns: [
       col("idProveedor", "Proveedor", { refKind: "proveedor", grow: true }),
-      col("idArticulo", "Articulo", { refKind: "articulo", width: 220 }),
-      col("precioUltimaCompra", "Ultimo precio", { type: "money" }),
+      col("idArticulo", "Artículo", { refKind: "articulo", width: 220 }),
+      col("precioUltimaCompra", "Último precio", { type: "money" }),
       col("fechaUltimaCompra", "Fecha", { type: "date", priority: "secondary" }),
     ],
     fields: [
@@ -378,12 +359,12 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
         required: true,
         optionsFrom: { path: "/api/com/proveedores", value: "idProveedor", label: "razonSocial" },
       },
-      { name: "idArticulo", label: "Articulo", kind: "select", required: true, optionsFrom: REF_ARTICULOS },
-      { name: "precioUltimaCompra", label: "Ultimo precio de compra", kind: "money" },
-      { name: "fechaUltimaCompra", label: "Fecha de la ultima compra", kind: "date" },
+      { name: "idArticulo", label: "Artículo", kind: "select", required: true, optionsFrom: REF_ARTICULOS },
+      { name: "precioUltimaCompra", label: "Último precio de compra", kind: "money" },
+      { name: "fechaUltimaCompra", label: "Fecha de la última compra", kind: "date", maxDate: "today" },
     ],
     help: {
-      title: "Artículo-Proveedor — para que sirve",
+      title: "Artículo-Proveedor — para qué sirve",
       body: (
         <p>
           Respaldo de precio: si al generar una Orden de compra manual no
@@ -398,7 +379,7 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   seguimientoOrden: {
     title: "Seguimiento de OC",
-    subtitle: "Bitacora de contactos con el proveedor sobre el despacho de una orden.",
+    subtitle: "Bitácora de contactos con el proveedor sobre el despacho de una orden.",
     basePath: "/api/com/seguimiento-orden",
     idField: "idSeguimiento",
     writePerm: Permisos.OC_GESTIONAR,
@@ -417,7 +398,7 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
       { name: "notas", label: "Notas", kind: "textarea" },
     ],
     help: {
-      title: "Seguimiento de OC — para que sirve",
+      title: "Seguimiento de OC — para qué sirve",
       body: (
         <p>
           Bitácora libre de contactos con el proveedor sobre el despacho de
@@ -431,27 +412,27 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
 
   excepcionOrden: {
     title: "Excepciones de OC",
-    subtitle: "Incidencias reportadas sobre una orden (faltantes, danos, retrasos…).",
+    subtitle: "Incidencias reportadas sobre una orden (faltantes, daños, retrasos…).",
     basePath: "/api/com/excepciones-orden",
     idField: "idExcepcion",
     writePerm: Permisos.OC_GESTIONAR,
     columns: [
       col("idOrdenCompra", "OC", { refKind: "docOrden", width: 96 }),
       col("tipo", "Tipo", { width: 170, render: (r) => staticLabel(TIPO_EXCEPCION_ORDEN, r["tipo"]) }),
-      col("descripcion", "Descripcion", { type: "text", grow: true, priority: "secondary" }),
-      col("resuelta", "Resuelta", { width: 90, render: (r) => (r["resuelta"] === true ? "Si" : "No") }),
+      col("descripcion", "Descripción", { type: "text", grow: true, priority: "secondary" }),
+      col("resuelta", "Resuelta", { width: 90, render: (r) => (r["resuelta"] === true ? "Sí" : "No") }),
       col("fechaResolucion", "Resuelta el", { type: "date", priority: "secondary" }),
     ],
     fields: [
       { name: "idOrdenCompra", label: "Orden de compra", kind: "select", required: true, optionsFrom: REF_ORDENES },
-      { name: "tipo", label: "Tipo de excepcion", kind: "select", required: true, optionsStatic: TIPO_EXCEPCION_ORDEN },
-      { name: "descripcion", label: "Descripcion", kind: "longText", required: true },
+      { name: "tipo", label: "Tipo de excepción", kind: "select", required: true, optionsStatic: TIPO_EXCEPCION_ORDEN },
+      { name: "descripcion", label: "Descripción", kind: "longText", required: true },
       { name: "idEmpleadoReporta", label: "Reporta", kind: "select", required: true, optionsFrom: REF_EMPLEADOS },
       { name: "resuelta", label: "Resuelta", kind: "switch" },
-      { name: "fechaResolucion", label: "Fecha de resolucion", kind: "datetime" },
+      { name: "fechaResolucion", label: "Fecha de resolución", kind: "datetime" },
     ],
     help: {
-      title: "Excepciones de OC — para que sirve",
+      title: "Excepciones de OC — para qué sirve",
       body: (
         <p>
           Incidencias reportadas sobre una Orden de compra (faltante, daño,
@@ -464,53 +445,52 @@ export const CATALOG_CONFIGS: Record<string, CrudPageConfig> = {
   },
 
   articulos: {
-    title: "Articulos",
-    subtitle: "Catalogo de productos: categoria y umbrales de inventario.",
+    title: "Artículos",
+    subtitle: "Catálogo de productos: categoría y umbrales de inventario.",
     basePath: "/api/com/articulos",
     idField: "idArticulo",
-    searchField: "nombre",
-    searchPlaceholder: "Buscar articulos... (ej. martillo)",
+    searchPlaceholder: "Buscar por código, nombre o descripción (ej. martillo)…",
     filterFields: [
-      { key: "idCategoria", label: "Categoria", optionsFrom: REF_CATEGORIAS },
+      { key: "idCategoria", label: "Categoría", optionsFrom: REF_CATEGORIAS },
       { key: "estado", label: "Estado", options: estadoAI },
     ],
     columns: [
-      col("codigo", "Codigo", { sortable: true, width: 110 }),
+      col("codigo", "Código", { sortable: true, width: 110 }),
       col("nombre", "Nombre", { sortable: true, grow: true }),
-      col("idCategoria", "Categoria", { refKind: "categoria", priority: "secondary" }),
+      col("idCategoria", "Categoría", { refKind: "categoria", priority: "secondary" }),
       col("idUnidadMedida", "Unidad", { refKind: "unidadMedida", width: 110, priority: "secondary" }),
-      col("stockMinimo", "Stock minimo", { type: "num", width: 110, priority: "secondary" }),
-      col("stockMaximo", "Stock maximo", { type: "num", width: 110, priority: "secondary" }),
+      col("stockMinimo", "Stock mínimo", { type: "num", width: 110, priority: "secondary" }),
+      col("stockMaximo", "Stock máximo", { type: "num", width: 110, priority: "secondary" }),
       col("estado", "Estado", { type: "estado" }),
     ],
     fields: [
-      { name: "codigo", label: "Codigo", kind: "code", required: true },
+      { name: "codigo", label: "Código", kind: "code", required: true },
       { name: "nombre", label: "Nombre", kind: "name", required: true },
       {
         name: "idCategoria",
-        label: "Categoria",
+        label: "Categoría",
         kind: "select",
         optionsFrom: REF_CATEGORIAS,
-        help: "Asi al buscar o filtrar aparece junto a los de su familia (martillos con martillos, no con taladros).",
+        help: "Así al buscar o filtrar aparece junto a los de su familia (martillos con martillos, no con taladros).",
       },
       { name: "idUnidadMedida", label: "Unidad de medida", kind: "select", required: true, optionsFrom: REF_UNIDADES },
-      { name: "tipoArticulo", label: "Tipo de articulo", kind: "select", required: true, optionsStatic: TIPO_ARTICULO_OPCIONES },
+      { name: "tipoArticulo", label: "Tipo de artículo", kind: "select", required: true, optionsStatic: TIPO_ARTICULO_OPCIONES },
       {
         name: "stockMinimo",
-        label: "Stock minimo",
+        label: "Stock mínimo",
         kind: "quantity",
-        help: "Bajo este nivel el sistema avisa automaticamente que hay que reabastecer.",
+        help: "Bajo este nivel el sistema avisa automáticamente que hay que reabastecer.",
       },
       {
         name: "stockMaximo",
-        label: "Stock maximo",
+        label: "Stock máximo",
         kind: "quantity",
-        help: "Nivel objetivo: la cantidad sugerida de reposicion llega hasta aqui.",
+        help: "Nivel objetivo: la cantidad sugerida de reposición llega hasta aquí.",
       },
-      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true },
+      { name: "estado", label: "Estado", kind: "select", options: estadoAI, required: true, defaultValue: "A" },
     ],
     help: {
-      title: "Artículos — para que sirve",
+      title: "Artículos — para qué sirve",
       body: (
         <>
           <p>

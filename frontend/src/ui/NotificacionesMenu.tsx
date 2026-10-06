@@ -23,16 +23,20 @@ const ICONO: Record<NotiTipo, IconName> = {
 export function NotificacionesMenu(props: {
   onNavigate: (leafId: string) => void;
 }): React.ReactElement {
-  const { bandeja, loading } = useNotificaciones();
+  const { bandeja, decisiones, sinLeer, marcarLeidas, loading } = useNotificaciones();
   const [open, setOpen] = useState(false);
-  const total = bandeja.total;
+  const total = bandeja.total + sinLeer;
 
   return (
     <div className="relative">
       <button
         type="button"
         className="btn btn-ghost btn-sm relative"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          // Abrir la campana = ya viste las respuestas.
+          if (!open) window.setTimeout(marcarLeidas, 1200);
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Pendientes: ${total}`}
@@ -73,6 +77,58 @@ export function NotificacionesMenu(props: {
               boxShadow: "var(--shadow-lg)",
             }}
           >
+            {decisiones.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-[0.82rem] font-semibold" style={{ color: "var(--color-heading)" }}>
+                  Respuestas a tus solicitudes
+                </div>
+                <div className="grid gap-0.5" style={{ maxHeight: 220, overflowY: "auto" }}>
+                  {decisiones.slice(0, 8).map((d) => (
+                    <button
+                      key={d.idWorkflow}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpen(false);
+                        props.onNavigate("com-doc-solicitudes");
+                      }}
+                      className="flex items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-fluent"
+                      style={{ background: "transparent" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-surface-2)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span
+                        className="mt-0.5 grid place-items-center shrink-0"
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          background: d.resultado === "RECHAZADA" ? "var(--color-danger-050, #fdecec)" : "var(--color-success-050)",
+                          color: d.resultado === "RECHAZADA" ? "var(--color-danger)" : "var(--color-success)",
+                        }}
+                      >
+                        <Icon name={d.resultado === "RECHAZADA" ? "x" : "check"} size={14} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[0.82rem] font-semibold" style={{ color: "var(--color-ink)" }}>
+                          {d.mensaje}
+                        </span>
+                        <span className="block text-[0.72rem]" style={{ color: "var(--color-ink-soft)" }}>
+                          {d.resultado === "RECHAZADA" && d.comentario !== null
+                            ? `Motivo: ${d.comentario}`
+                            : d.estadoNuevo === "EN_COTIZACION"
+                              ? "Aprobada por completo: pasa a cotización."
+                              : d.estadoNuevo === "PENDIENTE_GERENTE"
+                                ? "Ahora espera al gerente de área."
+                                : d.resumen}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="my-1" style={{ borderTop: "1px solid var(--color-line)" }} />
+              </>
+            )}
             <div className="px-2 py-1.5 text-[0.82rem] font-semibold" style={{ color: "var(--color-heading)" }}>
               Pendientes
             </div>

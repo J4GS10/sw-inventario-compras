@@ -5,6 +5,7 @@
  * cotizaciones de la misma linea de solicitud (regla de negocio).
  */
 
+import { SoloValidacionExitosa } from "../../../common/errors/SoloValidacion.js";
 import type { AuditContext } from "../../../common/types/AuditContext.js";
 import {
   BusinessRuleError,
@@ -20,12 +21,21 @@ import {
 import { CompraReadRepository } from "../../../dal/repositories/com/CompraReadRepository.js";
 import { rfqIdsEnAlcance } from "./alcanceDocumentos.js";
 import { validateAgainstDescriptor } from "../../../common/validation/descriptorValidation.js";
+import { Validacion } from "../../../common/validation/reglas.js";
+import { aDia, formatoDia } from "../../../common/util/fechas.js";
+import {
+  rfqAceptaCotizaciones,
+  validarLineasCotizacion,
+  validarTasaCambio,
+  validarVencimientoCotizacion,
+} from "../../compras/reglasDocumentos.js";
 import { COM_DESCRIPTORS } from "../../../entities/com/descriptors.js";
 import type { CotizacionDetalle } from "../../../entities/com/models.js";
 import type { WithDetails } from "../../../dal/contracts/IHeaderDetailRepository.js";
 import {
   cotizacionRepository,
   rfqRepository,
+  solicitudRepository,
 } from "../../../dal/repositories/com/index.js";
 import { repositoryFactory } from "../../../dal/repositories/RepositoryFactory.js";
 import { ComEvents } from "../../events/domainEvents.js";
@@ -37,10 +47,26 @@ interface CotizacionHeader {
   readonly idProveedor: number;
 }
 
+interface RfqFila {
+  readonly estado: string;
+  readonly idSolicitud: number;
+  readonly fechaLimite: unknown;
+}
+
+type Conn = import("oracledb").Connection;
+
 export class CotizacionService extends TransactionalService {
   private readonly repo = cotizacionRepository();
 
   private readonly rfqRepo = rfqRepository();
+
+  private readonly solicitudRepo = solicitudRepository();
+
+  private readonly rfqProveedorRepo = repositoryFactory().get<
+    { idRfq: number; idProveedor: number },
+    object,
+    object
+  >("rfqProveedor");
 
   private readonly readRepo = new CompraReadRepository();
 
@@ -91,8 +117,19 @@ export class CotizacionService extends TransactionalService {
     const b = this.asObject(body);
     const lineasRaw = Array.isArray(b["lineas"]) ? b["lineas"] : [];
     if (lineasRaw.length === 0) {
-      throw new ValidationError("La cotizacion debe incluir al menos una linea");
+      throw new ValidationError("La cotización debe incluir al menos una línea");
     }
+    const lineasIn = this.normalizarLineas(lineasRaw);
+
+    // Datos de la cabecera: tipos, rangos y vencimiento no pasado.
+    const reglas = new Validacion();
+    reglas.id("idRfq", "El RFQ", b["idRfq"]);
+    reglas.id("idProveedor", "El proveedor", b["idProveedor"]);
+    reglas.id("idCondicionPago", "La condición de pago", b["idCondicionPago"]);
+    reglas.id("idMoneda", "La moneda", b["idMoneda"]);
+    validarTasaCambio(reglas, b["tasaCambio"] === undefined ? 1 : b["tasaCambio"]);
+    validarVencimientoCotizacion(reglas, b["fechaVencimiento"]);
+    reglas.lanzarSiHay("Cotización inválida");
 
     const cabecera = validateAgainstDescriptor(
       COM_DESCRIPTORS.cotizacionProveedor,
@@ -102,47 +139,34 @@ export class CotizacionService extends TransactionalService {
         idCondicionPago: Number(b["idCondicionPago"]),
         idMoneda: Number(b["idMoneda"]),
         tasaCambio: b["tasaCambio"] === undefined ? 1 : Number(b["tasaCambio"]),
-        fechaVencimiento: String(b["fechaVencimiento"] ?? ""),
+        fechaVencimiento: String(b["fechaVencimiento"] ?? "").trim(),
       },
       "create",
     );
-
-    const fkProp = this.repo.detailForeignKeyProp();
-    const detalles = lineasRaw.map((raw) => {
-      const l = raw as Record<string, unknown>;
-      return validateAgainstDescriptor(
-        COM_DESCRIPTORS.cotizacionDetalle,
-        {
-          idSolicitudDetalle: Number(l["idSolicitudDetalle"]),
-          precioUnitario: Number(l["precioUnitario"]),
-          cantidad: Number(l["cantidad"]),
-          idUnidadMedida: Number(l["idUnidadMedida"]),
-          porcentajeDescuento:
-            l["porcentajeDescuento"] === undefined ? 0 : Number(l["porcentajeDescuento"]),
-          porcentajeImpuesto:
-            l["porcentajeImpuesto"] === undefined ? 0 : Number(l["porcentajeImpuesto"]),
-          adjudicado: false,
-        },
-        "create",
-        [fkProp],
-      );
-    });
 
     return this.runInTransaction(async ({ conn }) => {
       // Mismo cerrojo que actualizar/eliminar: una cotizacion nueva solo
       // entra mientras el RFQ sigue ABIERTO (CERRADO/CANCELADO ya no admite
       // ofertas tardias; hay que reabrir el RFQ primero si hace falta).
-      const rfq = (await this.rfqRepo.findById(cabecera["idRfq"] as number, conn)) as
-        | { estado: string }
-        | null;
+      const idRfq = cabecera["idRfq"] as number;
+      const idProveedor = cabecera["idProveedor"] as number;
+      // Serializa las ofertas de este RFQ: "una cotizacion por proveedor" se verifica y se inserta bajo el mismo bloqueo.
+      await this.rfqRepo.lockById(idRfq, conn);
+      const rfq = (await this.rfqRepo.findById(idRfq, conn)) as RfqFila | null;
       if (rfq === null) {
-        throw new NotFoundError("COM_RFQ_CABECERA", cabecera["idRfq"] as number);
+        throw new NotFoundError("COM_RFQ_CABECERA", idRfq);
       }
       if (rfq.estado !== "ABIERTO") {
         throw new BusinessRuleError(
-          `No se puede registrar la cotizacion: el RFQ esta ${rfq.estado.toLowerCase()}, no ABIERTO.`,
+          `No se puede registrar la cotización: el RFQ está ${rfq.estado.toLowerCase()}, no ABIERTO.`,
         );
       }
+      this.assertPlazoVigente(idRfq, rfq);
+      await this.assertProveedorInvitado(idRfq, idProveedor, conn);
+      await this.assertSinCotizacionPrevia(idRfq, idProveedor, null, conn);
+
+      const detalles = await this.construirDetalles(rfq, lineasIn, conn);
+      if (ctx.soloValidar === true) throw new SoloValidacionExitosa();
       return this.repo.createWithDetails(cabecera, detalles, ctx, conn) as Promise<
         WithDetails<CotizacionHeader, CotizacionDetalle>
       >;
@@ -165,6 +189,19 @@ export class CotizacionService extends TransactionalService {
         | null;
       if (actual === null) throw new NotFoundError("COM_COTIZACION_PROVEEDOR", id);
       await this.assertEditable(id, actual.idRfq, conn);
+      const rfq = (await this.rfqRepo.findById(actual.idRfq, conn)) as RfqFila | null;
+      if (rfq === null) throw new NotFoundError("COM_RFQ_CABECERA", actual.idRfq);
+      this.assertPlazoVigente(actual.idRfq, rfq);
+
+      const reglas = new Validacion();
+      if (b["tasaCambio"] !== undefined) validarTasaCambio(reglas, b["tasaCambio"]);
+      if (b["fechaVencimiento"] !== undefined) validarVencimientoCotizacion(reglas, b["fechaVencimiento"]);
+      for (const campo of ["idCondicionPago", "idMoneda"] as const) {
+        if (b[campo] !== undefined) {
+          reglas.id(campo, campo === "idMoneda" ? "La moneda" : "La condición de pago", b[campo]);
+        }
+      }
+      reglas.lanzarSiHay("Cotización inválida");
 
       const patch: Record<string, unknown> = {};
       for (const campo of ["idCondicionPago", "idMoneda"] as const) {
@@ -172,7 +209,7 @@ export class CotizacionService extends TransactionalService {
       }
       if (b["tasaCambio"] !== undefined) patch["tasaCambio"] = Number(b["tasaCambio"]);
       if (b["fechaVencimiento"] !== undefined) {
-        patch["fechaVencimiento"] = String(b["fechaVencimiento"]);
+        patch["fechaVencimiento"] = String(b["fechaVencimiento"]).trim();
       }
       if (Object.keys(patch).length > 0) {
         const dto = validateAgainstDescriptor(
@@ -184,25 +221,7 @@ export class CotizacionService extends TransactionalService {
       }
 
       if (Array.isArray(b["lineas"]) && b["lineas"].length > 0) {
-        const fkProp = this.repo.detailForeignKeyProp();
-        const detalles = (b["lineas"] as Record<string, unknown>[]).map((l) =>
-          validateAgainstDescriptor(
-            COM_DESCRIPTORS.cotizacionDetalle,
-            {
-              idSolicitudDetalle: Number(l["idSolicitudDetalle"]),
-              precioUnitario: Number(l["precioUnitario"]),
-              cantidad: Number(l["cantidad"]),
-              idUnidadMedida: Number(l["idUnidadMedida"]),
-              porcentajeDescuento:
-                l["porcentajeDescuento"] === undefined ? 0 : Number(l["porcentajeDescuento"]),
-              porcentajeImpuesto:
-                l["porcentajeImpuesto"] === undefined ? 0 : Number(l["porcentajeImpuesto"]),
-              adjudicado: false,
-            },
-            "create",
-            [fkProp],
-          ),
-        );
+        const detalles = await this.construirDetalles(rfq, this.normalizarLineas(b["lineas"]), conn);
         await this.repo.replaceDetails(id, detalles, ctx, conn);
       }
 
@@ -239,7 +258,7 @@ export class CotizacionService extends TransactionalService {
       | null;
     if (rfq !== null && rfq.estado !== "ABIERTO") {
       throw new BusinessRuleError(
-        "No se puede modificar: el RFQ ya no esta abierto (esta " +
+        "No se puede modificar: el RFQ ya no está abierto (está " +
           `${rfq.estado.toLowerCase()}).`,
       );
     }
@@ -257,7 +276,7 @@ export class CotizacionService extends TransactionalService {
     );
     if (adjudicadas.data.length > 0) {
       throw new BusinessRuleError(
-        "No se puede modificar: esta cotizacion tiene una linea adjudicada.",
+        "No se puede modificar: esta cotización tiene una línea adjudicada.",
       );
     }
   }
@@ -315,6 +334,108 @@ export class CotizacionService extends TransactionalService {
       });
       return updated;
     });
+  }
+
+  /** Cada linea como objeto; descuento/impuesto por defecto 0. */
+  private normalizarLineas(raw: readonly unknown[]): Record<string, unknown>[] {
+    return raw.map((l) => {
+      const o = l !== null && typeof l === "object" ? (l as Record<string, unknown>) : {};
+      return {
+        ...o,
+        porcentajeDescuento: o["porcentajeDescuento"] ?? 0,
+        porcentajeImpuesto: o["porcentajeImpuesto"] ?? 0,
+      };
+    });
+  }
+
+  /** Valida las lineas contra los renglones de la solicitud del RFQ y las deja listas para insertar. */
+  private async construirDetalles(
+    rfq: RfqFila,
+    lineas: readonly Record<string, unknown>[],
+    conn: Conn,
+  ): Promise<Record<string, unknown>[]> {
+    const renglones = (await this.solicitudRepo.listDetails(rfq.idSolicitud, conn)) as readonly {
+      idSolicitudDetalle: number;
+    }[];
+    const reglas = new Validacion();
+    validarLineasCotizacion(reglas, lineas, new Set(renglones.map((r) => r.idSolicitudDetalle)));
+    reglas.lanzarSiHay("Cotización inválida");
+
+    const fkProp = this.repo.detailForeignKeyProp();
+    return lineas.map((l) =>
+      validateAgainstDescriptor(
+        COM_DESCRIPTORS.cotizacionDetalle,
+        {
+          idSolicitudDetalle: Number(l["idSolicitudDetalle"]),
+          precioUnitario: Number(l["precioUnitario"]),
+          cantidad: Number(l["cantidad"]),
+          idUnidadMedida: Number(l["idUnidadMedida"]),
+          porcentajeDescuento: Number(l["porcentajeDescuento"]),
+          porcentajeImpuesto: Number(l["porcentajeImpuesto"]),
+          adjudicado: false,
+        },
+        "create",
+        [fkProp],
+      ),
+    );
+  }
+
+  /** Una oferta solo entra mientras el RFQ no haya pasado su fecha limite. */
+  private assertPlazoVigente(idRfq: number, rfq: RfqFila): void {
+    const limite = aDia(rfq.fechaLimite);
+    if (!rfqAceptaCotizaciones(limite)) {
+      throw new BusinessRuleError(
+        `El plazo del RFQ ${idRfq} venció el ${formatoDia(limite ?? "")}; ya no recibe ofertas. ` +
+          "Si necesita aceptarla, amplíe primero la fecha límite del RFQ.",
+      );
+    }
+  }
+
+  /** Solo cotizan los proveedores invitados al RFQ. */
+  private async assertProveedorInvitado(idRfq: number, idProveedor: number, conn: Conn): Promise<void> {
+    const inv = await this.rfqProveedorRepo.findAll(
+      normalizePageQuery({
+        page: 1,
+        pageSize: 1,
+        filters: [
+          { prop: "idRfq", operator: "eq", value: idRfq },
+          { prop: "idProveedor", operator: "eq", value: idProveedor },
+        ],
+      }),
+      conn,
+    );
+    if (inv.data.length === 0) {
+      throw new BusinessRuleError(
+        `El proveedor ${idProveedor} no fue invitado al RFQ ${idRfq}; solo cotizan los invitados.`,
+      );
+    }
+  }
+
+  /** Un proveedor tiene una sola cotizacion vigente por RFQ (se corrige editandola). */
+  private async assertSinCotizacionPrevia(
+    idRfq: number,
+    idProveedor: number,
+    excepto: number | null,
+    conn: Conn,
+  ): Promise<void> {
+    const previas = await this.repo.findAll(
+      normalizePageQuery({
+        page: 1,
+        pageSize: 5,
+        filters: [
+          { prop: "idRfq", operator: "eq", value: idRfq },
+          { prop: "idProveedor", operator: "eq", value: idProveedor },
+        ],
+      }),
+      conn,
+    );
+    const otra = (previas.data as readonly CotizacionHeader[]).find((c) => c.idCotizacion !== excepto);
+    if (otra !== undefined) {
+      throw new BusinessRuleError(
+        `El proveedor ${idProveedor} ya cotizó este RFQ (cotización ${otra.idCotizacion}). ` +
+          "Edite esa cotización en vez de registrar otra.",
+      );
+    }
   }
 
   private asObject(body: unknown): Record<string, unknown> {

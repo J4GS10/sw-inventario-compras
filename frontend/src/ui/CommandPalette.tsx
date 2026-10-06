@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.js";
 import { ALL_LEAVES, type NavLeaf } from "../nav.js";
+import { normalizarTexto } from "../core/search.js";
 
 export function useCommandPalette(): {
   open: boolean;
@@ -38,9 +39,9 @@ export function CommandPalette(props: {
 
   const pool = props.leaves ?? ALL_LEAVES;
   const results = useMemo(() => {
-    const t = q.trim().toLowerCase();
+    const t = normalizarTexto(q.trim());
     if (t === "") return pool.slice(0, 8);
-    return pool.filter((l) => l.label.toLowerCase().includes(t)).slice(0, 10);
+    return pool.filter((l) => normalizarTexto(l.label).includes(t)).slice(0, 10);
   }, [q, pool]);
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export function CommandPalette(props: {
                 props.onClose();
               } else if (e.key === "Escape") props.onClose();
             }}
-            placeholder="Buscar pantalla, catalogo, documento…"
+            placeholder="Buscar pantalla, catálogo, documento…"
             className="w-full bg-transparent outline-none text-[0.95rem]"
             style={{ color: "var(--color-ink)" }}
           />

@@ -12,7 +12,7 @@ const ESTADO_LABEL: Record<string, string> = {
   // Solicitud de compra
   PENDIENTE_JEFE: "pendiente del jefe",
   PENDIENTE_GERENTE: "pendiente del gerente",
-  EN_COTIZACION: "en cotizacion",
+  EN_COTIZACION: "en cotización",
   ORDEN_GENERADA: "con orden generada",
   RECHAZADA: "rechazada",
   // RFQ
@@ -22,7 +22,7 @@ const ESTADO_LABEL: Record<string, string> = {
   // Orden de compra
   EMITIDA: "emitida",
   ENVIADA: "enviada al proveedor",
-  EN_TRANSITO: "en transito",
+  EN_TRANSITO: "en tránsito",
   RECIBIDA_PARCIAL: "recibida parcial",
   RECIBIDA_COMPLETA: "recibida completa",
   CANCELADA: "cancelada",

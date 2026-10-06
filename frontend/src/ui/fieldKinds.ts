@@ -61,10 +61,10 @@ function numRange(
   const base = req(raw, required);
   if (base !== null || raw.trim() === "") return base;
   const n = Number(raw);
-  if (!Number.isFinite(n)) return "Debe ser numerico";
+  if (!Number.isFinite(n)) return "Debe ser numérico";
   if (opts.integer && !Number.isInteger(n)) return "Debe ser entero";
-  if (opts.min !== undefined && n < opts.min) return `Minimo ${opts.min}`;
-  if (opts.max !== undefined && n > opts.max) return `Maximo ${opts.max}`;
+  if (opts.min !== undefined && n < opts.min) return `Mínimo ${opts.min}`;
+  if (opts.max !== undefined && n > opts.max) return `Máximo ${opts.max}`;
   return null;
 }
 
@@ -87,7 +87,7 @@ export const FIELD_KINDS: Record<FieldKind, FieldKindSpec> = {
     validate: (r, q) => {
       const b = req(r, q);
       if (b !== null || r.trim() === "") return b;
-      return /^[0-9A-Za-z-]{5,20}$/.test(r.trim()) ? null : "NIT no valido";
+      return /^[0-9A-Za-z-]{5,20}$/.test(r.trim()) ? null : "NIT no válido";
     },
   },
   shortText: {
@@ -100,7 +100,7 @@ export const FIELD_KINDS: Record<FieldKind, FieldKindSpec> = {
     inputType: "text",
     width: 260,
     maxLength: 150,
-    placeholder: "Nombre o razon social",
+    placeholder: "Nombre o razón social",
     validate: (r, q) => req(r, q),
   },
   longText: {
@@ -118,7 +118,7 @@ export const FIELD_KINDS: Record<FieldKind, FieldKindSpec> = {
     validate: (r, q) => {
       const b = req(r, q);
       if (b !== null || r.trim() === "") return b;
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.trim()) ? null : "Correo no valido";
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.trim()) ? null : "Correo no válido";
     },
   },
   phone: {

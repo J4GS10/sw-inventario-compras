@@ -4,7 +4,7 @@
  */
 
 import Icon, { type IconName } from "./Icon.js";
-import { estadoLabel, estadoTono } from "../core/estados.js";
+import { estadoIcono, estadoLabel, estadoTono } from "../core/estados.js";
 import { HelpTip, type HelpContent } from "./HelpTip.js";
 
 /* ---- Button ------------------------------------------------------------- */
@@ -75,7 +75,7 @@ export function PageHeader(props: {
         )}
       </div>
       {props.actions !== undefined && (
-        <div className="flex flex-wrap items-center gap-2">{props.actions}</div>
+        <div className="page-actions flex flex-wrap items-center gap-2">{props.actions}</div>
       )}
     </header>
   );
@@ -106,8 +106,13 @@ export function KpiCard(props: {
   icon: IconName;
   tone?: Tone;
   hint?: string;
+  /** Tendencia: nuevos en los últimos 7 días frente a los 7 días anteriores. */
+  tendencia?: { actual: number; previo: number };
 }): React.ReactElement {
   const tone = props.tone ?? "brand";
+  const t = props.tendencia;
+  const delta = t === undefined ? 0 : t.actual - t.previo;
+  const flecha = delta > 0 ? "▲" : delta < 0 ? "▼" : "＝";
   return (
     <div className="card p-4 flex items-center gap-3.5 min-w-[170px]">
       <div
@@ -135,6 +140,18 @@ export function KpiCard(props: {
         {props.hint !== undefined && (
           <div className="text-[0.7rem]" style={{ color: "var(--color-ink-faint)" }}>
             {props.hint}
+          </div>
+        )}
+        {t !== undefined && (
+          <div
+            className="text-[0.7rem]"
+            style={{ color: "var(--color-ink-faint)" }}
+            title={`Registros nuevos en los últimos 7 días (${delta === 0 ? "igual que" : delta > 0 ? `${delta} más que` : `${-delta} menos que`} los 7 días anteriores)`}
+          >
+            <span style={{ color: delta > 0 ? "var(--color-success)" : delta < 0 ? "var(--color-warning)" : "inherit" }} aria-hidden="true">
+              {flecha}
+            </span>{" "}
+            {t.actual} nuevos · 7 días
           </div>
         )}
       </div>
@@ -192,7 +209,12 @@ export function Chip(props: {
 
 export function EstadoChip(props: { estado: string | null | undefined }): React.ReactElement {
   // Texto legible + tono semantico desde la fuente unica (core/estados).
-  return <Chip tone={estadoTono(props.estado)}>{estadoLabel(props.estado)}</Chip>;
+  const icono = estadoIcono(props.estado) as IconName | undefined;
+  return (
+    <Chip tone={estadoTono(props.estado)} {...(icono !== undefined ? { icon: icono } : {})}>
+      {estadoLabel(props.estado)}
+    </Chip>
+  );
 }
 
 /* ---- StarRating --------------------------------------------------------
@@ -279,6 +301,8 @@ export function EmptyState(props: {
   icon?: IconName;
   title: string;
   hint?: string;
+  /** Salida concreta: "Crear la primera solicitud". */
+  action?: { label: string; onClick: () => void };
 }): React.ReactElement {
   return (
     <div
@@ -290,6 +314,11 @@ export function EmptyState(props: {
         {props.title}
       </div>
       {props.hint !== undefined && <div className="text-[0.8rem]">{props.hint}</div>}
+      {props.action !== undefined && (
+        <Button size="sm" icon="plus" onClick={props.action.onClick}>
+          {props.action.label}
+        </Button>
+      )}
     </div>
   );
 }

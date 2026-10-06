@@ -28,13 +28,15 @@ export interface Sesion {
   readonly nombre: string;
   readonly roles: readonly string[];
   readonly permisos: readonly string[];
+  /** Quienes le delegaron hoy sus aprobaciones (informativo). */
+  readonly delegadoDe?: readonly string[];
 }
 
 interface AuthState {
   readonly sesion: Sesion | null;
   /** true cuando ya se resolvio el estado inicial (token guardado -> /me). */
   readonly ready: boolean;
-  /** Aviso para la pantalla de acceso (p. ej. "sesion expirada"). */
+  /** Aviso para la pantalla de acceso (p. ej. "sesión expirada"). */
   readonly notice: string | null;
   login(username: string, password: string): Promise<void>;
   logout(): void;
@@ -82,7 +84,7 @@ export function AuthProvider(props: { children: ReactNode }): React.ReactElement
       if (!tokenVigente(token)) {
         http.setToken(null);
         if (vivo) {
-          setNotice("Tu sesion expiro. Vuelve a ingresar.");
+          setNotice("Tu sesión expiró. Vuelve a ingresar.");
           setReady(true);
         }
         return;
@@ -102,11 +104,33 @@ export function AuthProvider(props: { children: ReactNode }): React.ReactElement
     };
   }, []);
 
+  // La sesion se refresca sola (al volver a la pestana y cada minuto): una delegacion nueva o revocada,
+  // o un cambio de roles, se refleja sin cerrar sesion.
+  const idUsuario = sesion?.idUsuario ?? 0;
+  useEffect(() => {
+    if (idUsuario === 0) return;
+    const refrescar = (): void => {
+      void http
+        .get<Sesion>("/api/auth/me")
+        .then((s) => setSesion((prev) => (prev !== null && JSON.stringify(prev) === JSON.stringify(s) ? prev : s)))
+        .catch(() => undefined);
+    };
+    const t = window.setInterval(refrescar, 60_000);
+    const alVolver = (): void => {
+      if (document.visibilityState === "visible") refrescar();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [idUsuario]);
+
   // El HttpClient avisa cuando un request autenticado recibe 401.
   useEffect(() => {
     http.onAuthExpired(() => {
       setSesion(null);
-      setNotice("Tu sesion expiro. Vuelve a ingresar.");
+      setNotice("Tu sesión expiró. Vuelve a ingresar.");
     });
     return () => http.onAuthExpired(null);
   }, []);

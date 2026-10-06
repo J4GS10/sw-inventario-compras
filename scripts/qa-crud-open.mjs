@@ -11,6 +11,7 @@
 //
 // Requiere: backend :3000 y frontend :8443 corriendo (`pnpm dev`).
 // Uso: node scripts/qa-crud-open.mjs [--headed] [--roles=admin,comprador,...]
+import { entrar } from "./qa-lib.mjs";
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
@@ -29,17 +30,17 @@ const ROLES = rolesArg
 // desde su propia pantalla) porque no tienen boton "Nuevo" en la lista.
 const SCREENS = [
   "Solicitudes de compra",
-  "Ordenes de compra",
+  "Órdenes de compra",
   "Cotizaciones",
   "RFQ / Invitaciones",
   "Recepciones",
   "Devoluciones",
   "Proveedores",
   "Acuerdos marco",
-  "Articulo-Proveedor",
+  "Artículo-Proveedor",
   "Condiciones de pago",
-  "Terminos de entrega",
-  "Categorias de compra",
+  "Términos de entrega",
+  "Categorías de compra",
   "Grupos de compra",
   "Centros de costo",
   "Monedas",
@@ -65,9 +66,7 @@ for (const role of ROLES) {
   });
 
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("text=Elija un perfil", { timeout: 20000 });
-  await page.locator(`button:has-text("· ${role}")`).first().click();
-  await page.waitForSelector("text=MODULOS DEL SISTEMA", { timeout: 20000 });
+  await entrar(page, role);
   await page.waitForTimeout(400);
 
   for (const leaf of SCREENS) {
@@ -75,7 +74,7 @@ for (const role of ROLES) {
     await page.keyboard.down("Control");
     await page.keyboard.press("KeyK");
     await page.keyboard.up("Control");
-    const input = page.locator('input[placeholder^="Buscar"]');
+    const input = page.locator('input[placeholder^="Buscar pantalla"]');
     const paletteOpen = await input.isVisible({ timeout: 2000 }).catch(() => false);
     if (!paletteOpen) {
       report.push({ role, leaf, action: "nav", status: "NO_PALETTE" });

@@ -4,6 +4,7 @@
  *
  * Formatos aceptados:
  *   ?page=1&pageSize=20&sort=razonSocial&order=asc
+ *   ?q=martillo                   -> busqueda global (ver SearchDescriptor)
  *   ?estado=A                     -> filtro eq sobre "estado"
  *   ?razonSocial__like=acme       -> filtro like
  *   ?prioridad__gte=3             -> operadores: eq ne like gt gte lt lte in isNull notNull
@@ -17,7 +18,7 @@ import {
   type PageQuery,
 } from "../../common/types/Query.js";
 
-const RESERVED = new Set(["page", "pageSize", "sort", "order"]);
+const RESERVED = new Set(["page", "pageSize", "sort", "order", "q"]);
 const OPERATORS = new Set<FilterOperator>([
   "eq",
   "ne",
@@ -43,6 +44,7 @@ export function parseListQuery(raw: RawQuery): PageQuery {
   const pageSize = Number.parseInt(first(raw["pageSize"]) ?? "20", 10);
   const sort = first(raw["sort"]);
   const orderRaw = first(raw["order"]);
+  const search = first(raw["q"]);
   const order = orderRaw === "desc" ? "desc" : "asc";
 
   const filters: FilterCondition[] = [];
@@ -73,7 +75,9 @@ export function parseListQuery(raw: RawQuery): PageQuery {
     order: "asc" | "desc";
     filters: FilterCondition[];
     sort?: string;
+    search?: string;
   } = { page, pageSize, order, filters };
   if (sort !== undefined) normalized.sort = sort;
+  if (search !== undefined) normalized.search = search;
   return normalizePageQuery(normalized);
 }

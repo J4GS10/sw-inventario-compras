@@ -94,13 +94,13 @@ beforeAll(async () => {
         idSucursal: ids.sucursal,
         idGrupoCompra: ids.grupoCompra,
         idTerminoEntrega: ids.terminoEntrega,
-        justificacion: "Reversa + adjuntos devolucion (test)",
+        justificacion: "Reversa + adjuntos devolución (test)",
         prioridad: 2,
       },
       detalles: [
         {
           idArticulo: ids.articulo,
-          descripcion: "Articulo reversa",
+          descripcion: "Artículo reversa",
           cantidadSolicitada: 20,
           idUnidadMedida: ids.unidadMedida,
           fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -180,7 +180,7 @@ beforeAll(async () => {
       lineas: [
         {
           idArticulo: ids.articulo,
-          descripcion: "Articulo reversa",
+          descripcion: "Artículo reversa",
           cantidad: 20,
           idUnidadMedida: ids.unidadMedida,
           idCotizacionDetalle: s.cotDetalle,
@@ -229,17 +229,17 @@ afterAll(async () => {
   await stopTestApp(app);
 });
 
-describe("Adjuntos en devolucion a proveedor", () => {
+describe("Adjuntos en devolución a proveedor", () => {
   let ref = "";
 
-  it("1. registra una devolucion contra la recepcion B", async () => {
+  it("1. registra una devolución contra la recepción B", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/com/devoluciones",
       headers: H,
       payload: {
         idRecepcion: s.idRecepcionB,
-        motivo: "Producto danado (test)",
+        motivo: "Producto dañado (test)",
         idEmpleadoSolicita: ids.empleado,
         lineas: [{ idRecepcionDetalle: s.idRecepcionDetalleB, cantidadDevuelta: 2 }],
       },
@@ -249,7 +249,7 @@ describe("Adjuntos en devolucion a proveedor", () => {
     expect(s.idDevolucion).toBeGreaterThan(0);
   });
 
-  it("2. sube un PDF a la devolucion y aparece en el listado", async () => {
+  it("2. sube un PDF a la devolución y aparece en el listado", async () => {
     const mp = multipart("nota-devolucion.pdf", "application/pdf", Buffer.from("%PDF-1.4 devolucion"));
     const res = await app.inject({
       method: "POST",
@@ -308,7 +308,7 @@ describe("Adjuntos en devolucion a proveedor", () => {
     expect((list.json() as { data: unknown[] }).data.length).toBe(0);
   });
 
-  it("6. adjuntar a una devolucion inexistente da 404", async () => {
+  it("6. adjuntar a una devolución inexistente da 404", async () => {
     const mp = multipart("x.pdf", "application/pdf", Buffer.from("%PDF-1.4"));
     const res = await app.inject({
       method: "POST",
@@ -320,8 +320,8 @@ describe("Adjuntos en devolucion a proveedor", () => {
   });
 });
 
-describe("Reversa de recepcion que ya alimento CxP", () => {
-  it("1. la recepcion A esta ALIMENTADO_CXP con factura y kardex", async () => {
+describe("Reversa de recepción que ya alimentó CxP", () => {
+  it("1. la recepción A está ALIMENTADO_CXP con factura y kardex", async () => {
     const alimentada = await scalar(
       `SELECT DECODE(ESTADO,'ALIMENTADO_CXP',1,0) V FROM COM_RECEPCION WHERE ID_RECEPCION = ${s.idRecepcionA}`,
     );
@@ -336,7 +336,7 @@ describe("Reversa de recepcion que ya alimento CxP", () => {
     expect(kardex).toBe(1);
   });
 
-  it("2. reversa la recepcion A: anula la factura, compensa el kardex y borra logico", async () => {
+  it("2. reversa la recepción A: anula la factura, compensa el kardex y borra lógico", async () => {
     const existenciaAntes = await scalar(
       `SELECT NVL(SUM(CANTIDAD_ACTUAL),0) V FROM INV_EXISTENCIA_BODEGA WHERE ID_ARTICULO = ${ids.articulo} AND ID_BODEGA = ${ids.bodega}`,
     );
@@ -384,7 +384,7 @@ describe("Reversa de recepcion que ya alimento CxP", () => {
     expect(ocParcial).toBe(1);
   });
 
-  it("3. reversar de nuevo la recepcion A da 404 (ya no existe)", async () => {
+  it("3. reversar de nuevo la recepción A da 404 (ya no existe)", async () => {
     const res = await app.inject({
       method: "POST",
       url: `/api/com/recepciones/${s.idRecepcionA}/reversar`,
@@ -393,7 +393,7 @@ describe("Reversa de recepcion que ya alimento CxP", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("4. no se puede reversar la recepcion B: tiene una devolucion registrada (409)", async () => {
+  it("4. no se puede reversar la recepción B: tiene una devolución registrada (409)", async () => {
     const res = await app.inject({
       method: "POST",
       url: `/api/com/recepciones/${s.idRecepcionB}/reversar`,
@@ -422,7 +422,7 @@ describe("Rollback completo del estado de la OC (sin recepciones activas -> ENVI
         detalles: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo rollback total",
+            descripcion: "Artículo rollback total",
             cantidadSolicitada: 5,
             idUnidadMedida: ids.unidadMedida,
             fechaRequerida: inTwoWeeks.slice(0, 10),
@@ -486,7 +486,7 @@ describe("Rollback completo del estado de la OC (sin recepciones activas -> ENVI
         lineas: [
           {
             idArticulo: ids.articulo,
-            descripcion: "Articulo rollback total",
+            descripcion: "Artículo rollback total",
             cantidad: 5,
             idUnidadMedida: ids.unidadMedida,
             idCotizacionDetalle: cotDetalle,

@@ -81,7 +81,7 @@ export class BaseCrudService<TEntity> {
     const dto = await this.validateBody(body, "update");
     if (this.descriptor.version !== undefined && expectedVersion === null) {
       throw new ValidationError(
-        `${this.entityName} requiere el campo "version" para actualizar (bloqueo optimista)`,
+        `${this.entityName} requiere el campo "versión" para actualizar (bloqueo optimista)`,
         [{ field: "version", message: "obligatorio" }],
       );
     }

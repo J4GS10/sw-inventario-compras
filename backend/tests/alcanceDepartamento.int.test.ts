@@ -51,7 +51,7 @@ async function crearSolicitud(tk: string, idEmpleadoSolicitante: number): Promis
       detalles: [
         {
           idArticulo: fk.articulo,
-          descripcion: "Articulo de prueba",
+          descripcion: "Artículo de prueba",
           cantidadSolicitada: 5,
           idUnidadMedida: fk.unidadMedida,
           fechaRequerida: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10),
@@ -117,7 +117,7 @@ describe("Alcance por departamento / equipo", () => {
     expect(v.has(idB)).toBe(false);
   });
 
-  it("GERENTE de area ve las de su departamento (EMP-101) pero no las de otro (EMP-104)", async () => {
+  it("GERENTE de área ve las de su departamento (EMP-101) pero no las de otro (EMP-104)", async () => {
     const v = await idsVisibles("gerente");
     expect(v.has(idA)).toBe(true);
     expect(v.has(idB)).toBe(false);
@@ -165,11 +165,14 @@ describe("Alcance por departamento / equipo", () => {
 
   it("el JEFE sí puede aprobar una solicitud de su equipo (no 401/403)", async () => {
     const tk = await token("jefe");
+    // La decision se registra a nombre de quien decide: el idEmpleado es el del JEFE en sesion.
+    const me = await app.inject({ method: "GET", url: "/api/auth/me", headers: bearer(tk) });
+    const idEmpleadoJefe = (me.json() as { data: { sesion?: { idEmpleado: number }; idEmpleado?: number } }).data;
     const res = await app.inject({
       method: "POST",
       url: `/api/com/solicitudes/${idA}/aprobar`,
       headers: bearer(tk),
-      payload: { idEmpleado: fk.empSolicitante, comentario: "OK jefe" },
+      payload: { idEmpleado: idEmpleadoJefe.sesion?.idEmpleado ?? idEmpleadoJefe.idEmpleado, comentario: "OK jefe" },
     });
     expect([401, 403]).not.toContain(res.statusCode);
   });

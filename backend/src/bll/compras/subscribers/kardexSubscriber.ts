@@ -146,7 +146,7 @@ async function onRecepcionRegistrada(
 
   await oraclePool().withTransaction(async (conn) => {
     if (await yaProcesado(kardex, payload.idRecepcion, "ENTRADA_COMPRA", conn)) {
-      logger().info("Kardex ya tenia la entrada de esta recepcion (idempotente)", {
+      logger().info("Kardex ya tenía la entrada de esta recepción (idempotente)", {
         idRecepcion: payload.idRecepcion,
       });
       return;
@@ -208,7 +208,7 @@ async function onRecepcionRegistrada(
     );
   }
 
-  logger().info("Kardex actualizado por recepcion", {
+  logger().info("Kardex actualizado por recepción", {
     idRecepcion: payload.idRecepcion,
     lineas: payload.lineas.length,
   });
@@ -228,7 +228,7 @@ async function onRecepcionReversada(
 
   await oraclePool().withTransaction(async (conn) => {
     if (await yaProcesado(kardex, payload.idRecepcion, "AJUSTE_NEGATIVO", conn)) {
-      logger().info("Kardex ya tenia el ajuste de esta reversa (idempotente)", {
+      logger().info("Kardex ya tenía el ajuste de esta reversa (idempotente)", {
         idRecepcion: payload.idRecepcion,
       });
       return;
@@ -289,7 +289,7 @@ async function onRecepcionReversada(
     );
   }
 
-  logger().info("Kardex compensado por reversa de recepcion", {
+  logger().info("Kardex compensado por reversa de recepción", {
     idRecepcion: payload.idRecepcion,
     lineas: payload.lineas.length,
   });

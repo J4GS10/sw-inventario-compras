@@ -31,13 +31,13 @@ interface StepDef {
 
 const STEPS: readonly StepDef[] = [
   { key: "solicitud", label: "Solicitud", icon: "clipboard", leafId: "com-doc-solicitudes" },
-  { key: "aprobacion", label: "Aprobacion", icon: "check", leafId: "com-doc-solicitudes" },
+  { key: "aprobacion", label: "Aprobación", icon: "check", leafId: "com-doc-solicitudes" },
   { key: "rfq", label: "RFQ", icon: "send", leafId: "com-doc-rfq" },
-  { key: "cotizacion", label: "Cotizacion", icon: "coins", leafId: "com-doc-cotizaciones" },
+  { key: "cotizacion", label: "Cotización", icon: "coins", leafId: "com-doc-cotizaciones" },
   { key: "comparativo", label: "Comparativo", icon: "award", leafId: "com-an-comparativo" },
   { key: "orden", label: "Orden de compra", icon: "cart", leafId: "com-doc-ordenes" },
-  { key: "recepcion", label: "Recepcion", icon: "package", leafId: "com-doc-recepciones" },
-  { key: "devolucion", label: "CxP / Devolucion", icon: "undo", leafId: "com-doc-devoluciones" },
+  { key: "recepcion", label: "Recepción", icon: "package", leafId: "com-doc-recepciones" },
+  { key: "devolucion", label: "CxP / Devolución", icon: "undo", leafId: "com-doc-devoluciones" },
 ];
 
 export function FlowStepper(props: {
@@ -54,7 +54,7 @@ export function FlowStepper(props: {
   return (
     <nav
       aria-label="Ciclo de compras"
-      className="card table-scroll flex items-stretch gap-1 overflow-x-auto p-2"
+      className="table-scroll flex items-center gap-0.5 overflow-x-auto"
     >
       {STEPS.map((s, i) => {
         const done = activeIdx >= 0 && i < activeIdx;
@@ -84,7 +84,7 @@ export function FlowStepper(props: {
               disabled={!reachable}
               aria-current={active ? "step" : undefined}
               title={reachable ? s.label : `${s.label} — sin acceso para tu rol`}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[0.76rem] font-semibold transition-fluent"
+              className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[0.72rem] font-medium transition-fluent"
               style={{
                 background: bg,
                 color: fg,
@@ -92,11 +92,11 @@ export function FlowStepper(props: {
                 cursor: reachable ? "pointer" : "not-allowed",
               }}
             >
-              <Icon name={done ? "check" : s.icon} size={14} />
+              <Icon name={done ? "check" : s.icon} size={12} />
               <span className="whitespace-nowrap">{s.label}</span>
             </button>
             {i < STEPS.length - 1 && (
-              <Icon name="chevron-right" size={13} className="mx-0.5 shrink-0" />
+              <Icon name="chevron-right" size={11} className="shrink-0 opacity-40" />
             )}
           </div>
         );
