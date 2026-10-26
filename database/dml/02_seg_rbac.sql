@@ -7,7 +7,7 @@
 -- backend/src/common/auth/permissions.ts (fuente de verdad en codigo).
 -- ============================================================================
 
--- ---- Permisos (SEG_PERMISO) — 14 permisos del modulo COMPRAS ----------------
+-- ---- Permisos (SEG_PERMISO) — 19 permisos del modulo COMPRAS ----------------
 -- Principio de acceso: quien no gestiona/acciona un recurso, no lo ve. Se
 -- probaron permisos "*_VER" de solo lectura por recurso (para que gerencias/
 -- auditoria tuvieran trazabilidad sin poder editar) y se revirtieron a
@@ -29,7 +29,12 @@ SELECT v.c, v.n, 'COMPRAS', v.d FROM (
   SELECT 'COMPRAS_CATALOGO_VER',                  'Ver catálogos',                     'Consultar catálogos del módulo'                                 FROM dual UNION ALL
   SELECT 'COMPRAS_CATALOGO_EDITAR',               'Editar catálogos operativos',       'Proveedores, acuerdos, condiciones, grupos, centros de costo'    FROM dual UNION ALL
   SELECT 'COMPRAS_CATALOGO_ADMIN',                'Administrar monedas',               'Editar el catálogo de monedas'                                  FROM dual UNION ALL
-  SELECT 'COMPRAS_ANALISIS_VER',                  'Ver análisis',                      'Dashboard, comparativo, historial de precios y reportes'        FROM dual
+  SELECT 'COMPRAS_ANALISIS_VER',                  'Ver análisis',                      'Dashboard, comparativo e historial de precios'                  FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_EVALUACION',            'Reporte: evaluación de proveedores','Descuentos, entrega, cumplimiento, calidad y envío por proveedor: a quién comprarle' FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_GASTO',                 'Reporte: gasto por proveedor',      'Gasto por proveedor y resumen financiero del Dashboard'          FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_ENTREGAS',              'Reporte: órdenes pendientes de recibir','Órdenes por recibir y entregas atrasadas'                    FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_DESEMPENO',             'Reporte: desempeño de proveedores', 'Tiempos de entrega y rechazo por proveedor'                      FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_RIESGO',                'Reporte: riesgo de proveedores',    'Score de confiabilidad por proveedor'                            FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM SEG_PERMISO p WHERE p.CODIGO = v.c);
 
@@ -125,6 +130,10 @@ FROM (
   -- Finanzas (ver GERENTE_FINANCIERO) — ya no CATALOGO_ADMIN aqui.
   SELECT 'COMPRADOR',       'COMPRAS_CATALOGO_EDITAR'             FROM dual UNION ALL
   SELECT 'COMPRADOR',       'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
+  -- Reportes: un permiso por reporte; cada area ve solo los que le sirven para decidir.
+  SELECT 'COMPRADOR', 'COMPRAS_REPORTE_EVALUACION' FROM dual UNION ALL
+  SELECT 'COMPRADOR', 'COMPRAS_REPORTE_ENTREGAS' FROM dual UNION ALL
+  SELECT 'COMPRADOR', 'COMPRAS_REPORTE_DESEMPENO' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_SOLICITUD_VER'            FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_COTIZACION_ADJUDICAR'     FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_OC_GESTIONAR'             FROM dual UNION ALL
@@ -135,6 +144,9 @@ FROM (
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_CATALOGO_EDITAR'          FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_CATALOGO_ADMIN'           FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_ANALISIS_VER'             FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_GASTO' FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_ENTREGAS' FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_RIESGO' FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_RECEPCION_GESTIONAR'         FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_DEVOLUCION_GESTIONAR'        FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
@@ -142,12 +154,31 @@ FROM (
   -- gestiona RFQ/Cotizacion/OC/Recepcion/Devolucion -> no las ve.
   SELECT 'AUDITOR',         'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
   SELECT 'AUDITOR',         'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
-  SELECT 'AUDITOR',         'COMPRAS_ANALISIS_VER'                FROM dual
+  SELECT 'AUDITOR',         'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_GASTO' FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_DESEMPENO' FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_RIESGO' FROM dual
 ) v
 JOIN SEG_ROL r     ON r.CODIGO = v.rol  AND r.ELIMINADO = 'N'
 JOIN SEG_PERMISO p ON p.CODIGO = v.perm AND p.ELIMINADO = 'N'
 WHERE NOT EXISTS (
   SELECT 1 FROM SEG_ROL_PERMISO rp WHERE rp.ID_ROL = r.ID_ROL AND rp.ID_PERMISO = p.ID_PERMISO
+);
+
+-- Reportes: revoca lo que una version anterior les dio de mas (cada area ve solo
+-- los reportes de sus decisiones). Idempotente.
+DELETE FROM SEG_ROL_PERMISO rp
+WHERE (rp.ID_ROL, rp.ID_PERMISO) IN (
+  SELECT r.ID_ROL, p.ID_PERMISO
+  FROM (
+    SELECT 'COMPRADOR' rol, 'COMPRAS_REPORTE_GASTO' perm FROM dual UNION ALL
+    SELECT 'COMPRADOR',     'COMPRAS_REPORTE_RIESGO'        FROM dual UNION ALL
+    SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_EVALUACION' FROM dual UNION ALL
+    SELECT 'AUDITOR',       'COMPRAS_REPORTE_EVALUACION'    FROM dual UNION ALL
+    SELECT 'AUDITOR',       'COMPRAS_REPORTE_ENTREGAS'      FROM dual
+  ) v
+  JOIN SEG_ROL r     ON r.CODIGO = v.rol
+  JOIN SEG_PERMISO p ON p.CODIGO = v.perm
 );
 
 -- ADMIN_COMPRAS: todos los permisos del modulo.

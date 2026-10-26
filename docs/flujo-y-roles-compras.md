@@ -73,7 +73,8 @@ Implementado con las tablas `SEG_` del esquema (`SEG_ROL`, `SEG_PERMISO`,
 | `COMPRAS_CATALOGO_VER` | Ver catálogos (proveedores, monedas, …) |
 | `COMPRAS_CATALOGO_EDITAR` | Editar catálogos **operativos**: proveedores, artículo-proveedor, acuerdos, condiciones de pago, términos, grupos, categorías, centros de costo, seguimiento/excepciones de OC |
 | `COMPRAS_CATALOGO_ADMIN` | Editar el catálogo de **monedas** — función de Finanzas, no de Compras |
-| `COMPRAS_ANALISIS_VER` | Dashboard, comparativo, historial de precios, reportes |
+| `COMPRAS_ANALISIS_VER` | Dashboard, comparativo, historial de precios |
+| `COMPRAS_REPORTE_EVALUACION` / `_GASTO` / `_ENTREGAS` / `_DESEMPENO` / `_RIESGO` | Un reporte cada uno (ver tabla de abajo) |
 | `*` | Todo (solo `ADMIN_COMPRAS`) |
 
 **Principio rector, explícito y definitivo** (decisión del usuario tras
@@ -176,6 +177,62 @@ desde `/api/com/ref/oc/receptibles`, sin necesitar el documento completo.
 > **Ya no existe el atajo `X-Dev-User` por defecto**: sin login real (JWT) el
 > backend responde 401 y la app muestra el LoginScreen; el atajo solo revive con
 > `APP_DEV_AUTH=1` en entorno no productivo (dev/tests).
+
+### Dashboard y Reportes por rol (qué decide cada uno)
+
+**Cada reporte tiene su propio permiso** (`COMPRAS_REPORTE_*`), validado en el
+backend (JSON y PDF) y en el menú. Antes los cinco colgaban de `ANALISIS_VER` y
+todo rol con análisis los veía todos; ahora `ANALISIS_VER` solo cubre Dashboard,
+Comparativo e Historial de precios. Criterio: *un área ve un reporte solo si
+con él toma una decisión propia.*
+
+| Reporte (permiso) | Decisión que soporta | Compras | Finanzas | Auditoría | Gerente área / Jefe / Solicitante / Bodega |
+|---|---|:-:|:-:|:-:|:-:|
+| Evaluación de proveedores (`REPORTE_EVALUACION`) | A quién comprarle: descuento, entrega, envío | ✔ | – | – | – |
+| Gasto por proveedor (`REPORTE_GASTO`) + resumen financiero del Dashboard | Cuánto se gasta y con quién se concentra | – | ✔ | ✔ | – |
+| OC pendientes de recibir (`REPORTE_ENTREGAS`) | Seguimiento de entregas / compromisos de caja | ✔ | ✔ | – | – |
+| Desempeño de proveedores (`REPORTE_DESEMPENO`) | ¿Cumplen? Entrega y rechazo | ✔ | – | ✔ | – |
+| Riesgo de proveedores (`REPORTE_RIESGO`) | De quién es riesgoso depender | – | ✔ | ✔ | – |
+
+Cada área recibe 3 de los 5 reportes, y ninguna recibe el mismo conjunto:
+Compras = *operar* (comprar, recibir, evaluar cumplimiento); Finanzas =
+*dinero* (gasto, caja, dependencia); Auditoría = *control* (gasto, cumplimiento,
+riesgo). `ADMIN_COMPRAS` (`*`) ve todos.
+
+Gerente de área, jefe, solicitante y bodega **no tienen reportes** (no existe la
+opción en el menú y la API responde 403): su decisión es aprobar o recibir, y
+eso lo resuelven con sus bandejas y el Dashboard.
+
+Dashboard por rol (`frontend/src/modules/DashboardRol.tsx`; el perfil se deriva
+de los permisos de gestión en `perfilAnalitico.ts` y solo ordena/enfoca):
+
+| Perfil | Dashboard (cada panel usa solo el reporte que ese rol tiene) |
+|---|---|
+| Comprador | «A quién conviene comprarle» (mayor descuento, entrega más rápida, envío gratuito) + entregas atrasadas |
+| Financiero | Concentración del gasto por proveedor + panorama de gasto/ahorro |
+| Auditor | «Proveedores a vigilar» (riesgo medio/alto) + panorama financiero |
+| Gerente de área / Jefe | Sus decisiones pendientes de aprobación |
+| Solicitante | Sus solicitudes |
+
+Pruebas: `backend/tests/reportesRbac.int.test.ts` (rol real × reporte × JSON/PDF)
+y `frontend/src/core/auth/perfilAnalitico.test.ts`.
+
+**Evaluación de proveedores** (`GET /api/com/reportes/evaluacion-proveedores`,
++ `/pdf`): sobre las OC vigentes calcula por proveedor descuento ponderado por
+monto, ahorro en GTQ, días de entrega reales (emisión → última recepción),
+% de OC a tiempo, % de rechazo, % de OC con envío gratuito y flete promedio, y
+un score 0-100 por *enfoque* (`equilibrado`, `ahorro`, `rapidez`, `calidad`).
+Filtros: `desde`, `hasta`, `idCategoria` (categoría de artículo), `minOrdenes`
+(por defecto 2 en la UI), `prioridad`, `soloEnvioGratis`.
+
+- «Quién destaca» **no nombra ganador** si todos empatan, si hay un solo
+  proveedor con dato, o si el mejor descuento/envío gratis es 0: no inventa
+  diferencias.
+- **Envío gratuito** requiere el dato nuevo `COM_ORDEN_COMPRA.COSTO_ENVIO`
+  (`NULL` = no registrado, `0` = gratis, `> 0` = flete en la moneda de la OC).
+  Se captura en el formulario de la OC (campo *Costo de envío*) y se migra solo
+  (`ensureCostoEnvio` en `backend/scripts/deploy.ts`, también en
+  `SCRIPT_DDL.sql`). Las OC anteriores quedan en `NULL` («s/d»).
 
 ### Usuarios de demostración (seed `database/dml/02_seg_rbac.sql`)
 

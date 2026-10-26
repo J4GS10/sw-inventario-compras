@@ -94,11 +94,11 @@ describe("Autenticación", () => {
     expect((res.json() as { data: { username: string } }).data.username).toBe("gerente");
   });
 
-  it("GET /api/auth/permisos publica el catálogo (14 permisos, 8 roles)", async () => {
+  it("GET /api/auth/permisos publica el catálogo (19 permisos, 8 roles)", async () => {
     const res = await app.inject({ method: "GET", url: "/api/auth/permisos" });
     expect(res.statusCode).toBe(200);
     const { data } = res.json() as { data: { permisos: unknown[]; roles: unknown[] } };
-    expect(data.permisos).toHaveLength(14);
+    expect(data.permisos).toHaveLength(19);
     expect(data.roles).toHaveLength(8);
   });
 });

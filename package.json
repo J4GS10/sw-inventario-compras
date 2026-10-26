@@ -16,6 +16,7 @@
     "db:deploy:full": "pnpm --filter backend exec tsx scripts/deploy.ts --full",
     "db:seed": "pnpm --filter backend exec tsx scripts/deploy.ts --no-seed=false",
     "db:seed:flujo": "pnpm --filter backend exec tsx scripts/seedFlujoDemo.ts",
+    "db:seed:evaluacion": "pnpm --filter backend exec tsx scripts/seedEvaluacionDemo.ts",
     "gen:entities": "pnpm --filter backend gen:entities",
     "graphify:update": "graphify update .",
     "minio": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/minio.ps1",

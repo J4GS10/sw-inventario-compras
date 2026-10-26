@@ -12,6 +12,7 @@
 import type { IconName } from "./ui/Icon.js";
 import {
   Permisos,
+  PERMISOS_REPORTE,
   READ_COTIZACIONES,
   READ_DEVOLUCIONES,
   READ_OC,
@@ -110,7 +111,7 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
     label: "Reportes",
     icon: "clipboard",
     items: [
-      { id: "com-an-reportes", label: "Panel de reportes", kind: "reportes", icon: "chart", perm: ANALISIS },
+      { id: "com-an-reportes", label: "Panel de reportes", kind: "reportes", icon: "chart", perm: PERMISOS_REPORTE },
     ],
   },
   {

@@ -71,7 +71,7 @@ export class DocumentDownloadService {
 
   /** Descarga el PDF de un reporte (`/api/com/reportes/{reporte}/pdf`). */
   public async descargarReportePdf(
-    reporte: "gasto-proveedor" | "oc-pendientes" | "desempeno-proveedores" | "riesgo-proveedores",
+    reporte: "gasto-proveedor" | "oc-pendientes" | "desempeno-proveedores" | "riesgo-proveedores" | "evaluacion-proveedores",
     query: Record<string, string>,
   ): Promise<void> {
     const blob = await this.http.blob(`/api/com/reportes/${reporte}/pdf`, query);

@@ -69,6 +69,8 @@ export interface CrearOrdenInput {
   readonly tasaCambio: number;
   readonly fechaEntregaEsperada: string;
   readonly numeroReferencia?: string;
+  /** Flete cobrado por el proveedor: 0 = envio gratuito; omitido = no registrado. */
+  readonly costoEnvio?: number;
   readonly idSolicitud?: number;
   readonly lineas: readonly LineaInput[];
 }
@@ -141,6 +143,7 @@ export class OrdenCompraService extends TransactionalService {
           estado: "EMITIDA",
           numeroReferencia: input.numeroReferencia ?? null,
           fechaEntregaEsperada: input.fechaEntregaEsperada,
+          costoEnvio: input.costoEnvio ?? null,
         },
         "create",
       );
@@ -224,6 +227,9 @@ export class OrdenCompraService extends TransactionalService {
       }
       if (b["tasaCambio"] !== undefined) validarTasaCambio(reglas, b["tasaCambio"]);
       if (b["idMoneda"] !== undefined) reglas.id("idMoneda", "La moneda", b["idMoneda"]);
+      if (b["costoEnvio"] !== undefined && b["costoEnvio"] !== null && b["costoEnvio"] !== "") {
+        reglas.noNegativo("costoEnvio", "El costo de envío", b["costoEnvio"]);
+      }
       reglas.lanzarSiHay("Orden de compra inválida");
 
       const patch: Record<string, unknown> = {};
@@ -238,6 +244,9 @@ export class OrdenCompraService extends TransactionalService {
       }
       if (b["idMoneda"] !== undefined) patch["idMoneda"] = Number(b["idMoneda"]);
       if (b["tasaCambio"] !== undefined) patch["tasaCambio"] = Number(b["tasaCambio"]);
+      if (b["costoEnvio"] !== undefined) {
+        patch["costoEnvio"] = b["costoEnvio"] === null || b["costoEnvio"] === "" ? null : Number(b["costoEnvio"]);
+      }
       if (Object.keys(patch).length > 0) {
         const dto = validateAgainstDescriptor(
           COM_DESCRIPTORS.ordenCompra,
@@ -458,6 +467,8 @@ export class OrdenCompraService extends TransactionalService {
     if (typeof b["numeroReferencia"] === "string" && b["numeroReferencia"].trim().length > 50) {
       v.error("numeroReferencia", "El número de referencia no puede superar 50 caracteres");
     }
+    const hayEnvio = b["costoEnvio"] !== undefined && b["costoEnvio"] !== null && b["costoEnvio"] !== "";
+    const costoEnvio = hayEnvio ? v.noNegativo("costoEnvio", "El costo de envío", b["costoEnvio"]) : null;
     validarLineasOrden(v, lineasObj);
     lineasObj.forEach((l, i) => {
       v.texto(`lineas[${i}].descripcion`, `Línea ${i + 1}: la descripción`, l["descripcion"], { max: 255 });
@@ -489,7 +500,8 @@ export class OrdenCompraService extends TransactionalService {
       fechaEntregaEsperada: String(b["fechaEntregaEsperada"]).trim(),
       lineas,
     };
-    const extra: { numeroReferencia?: string; idSolicitud?: number } = {};
+    const extra: { numeroReferencia?: string; costoEnvio?: number; idSolicitud?: number } = {};
+    if (costoEnvio !== null) extra.costoEnvio = costoEnvio;
     if (typeof b["numeroReferencia"] === "string" && b["numeroReferencia"].trim() !== "") {
       extra.numeroReferencia = b["numeroReferencia"].trim();
     }

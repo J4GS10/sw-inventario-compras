@@ -23,7 +23,7 @@ Sistema de diseño, patrones de interacción y lineamientos visuales del módulo
 El módulo de Compras e Inventario debe presentar una interfaz limpia, profesional y consistente con el resto de la suite ERP (Nómina, Cuentas por Cobrar y Cuentas por Pagar). La interfaz debe manejar una cantidad considerable de información sin resultar abrumadora, priorizando la claridad, la jerarquía visual y la facilidad de uso.
 
 El diseño toma como referencia principios de **Material Design 3**, **Apple Human Interface Guidelines** y **Fluent Design**, adaptados al sistema visual definido para el proyecto.
-
+/patrondienemo.md
 ### Material Design 3
 - Elevación mediante superficies y sombras suaves.
 - Radios consistentes entre 8 y 14 px según el componente.

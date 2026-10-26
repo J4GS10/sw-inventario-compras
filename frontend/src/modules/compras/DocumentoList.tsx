@@ -143,7 +143,7 @@ const LOCK_ELIMINAR: Record<string, (r: Record<string, unknown>) => boolean> = {
 /** configKey -> subconjunto de campos de cabecera editables (modo edicion del DocumentForm). */
 const EDIT_FIELDS: Record<string, readonly string[]> = {
   cotizaciones: ["idCondicionPago", "idMoneda", "tasaCambio", "fechaVencimiento"],
-  ordenesCompra: ["fechaEntregaEsperada", "numeroReferencia", "idMoneda", "tasaCambio"],
+  ordenesCompra: ["fechaEntregaEsperada", "costoEnvio", "numeroReferencia", "idMoneda", "tasaCambio"],
 };
 
 /** Solo estas filas admiten "Editar" (ademas del permiso). */
@@ -988,6 +988,10 @@ export default function DocumentoList(props: {
         { label: "Tasa de cambio", render: (h) => `x ${n(h["tasaCambio"]).toFixed(2)}` },
         { label: "Emisión", render: (h) => str(h["fechaEmision"]).slice(0, 10) || "—" },
         { label: "Entrega esperada", render: (h) => str(h["fechaEntregaEsperada"]).slice(0, 10) || "—" },
+        {
+          label: "Costo de envío",
+          render: (h) => (h["costoEnvio"] === null || h["costoEnvio"] === undefined ? "No registrado" : n(h["costoEnvio"]) === 0 ? "Gratuito" : n(h["costoEnvio"]).toFixed(2)),
+        },
         { label: "Referencia", render: (h) => str(h["numeroReferencia"]) || "—" },
       ];
     }

@@ -22,7 +22,22 @@ export const Permisos = {
   CATALOGO_EDITAR: "COMPRAS_CATALOGO_EDITAR",
   CATALOGO_ADMIN: "COMPRAS_CATALOGO_ADMIN",
   ANALISIS_VER: "COMPRAS_ANALISIS_VER",
+  /** Un permiso por reporte (espejo del backend): cada area ve solo los que le sirven para decidir. */
+  REPORTE_EVALUACION: "COMPRAS_REPORTE_EVALUACION",
+  REPORTE_GASTO: "COMPRAS_REPORTE_GASTO",
+  REPORTE_ENTREGAS: "COMPRAS_REPORTE_ENTREGAS",
+  REPORTE_DESEMPENO: "COMPRAS_REPORTE_DESEMPENO",
+  REPORTE_RIESGO: "COMPRAS_REPORTE_RIESGO",
 } as const;
+
+/** Cualquiera de estos habilita la pantalla de Reportes. */
+export const PERMISOS_REPORTE: readonly string[] = [
+  Permisos.REPORTE_EVALUACION,
+  Permisos.REPORTE_GASTO,
+  Permisos.REPORTE_ENTREGAS,
+  Permisos.REPORTE_DESEMPENO,
+  Permisos.REPORTE_RIESGO,
+];
 
 export type PermisoCodigo = (typeof Permisos)[keyof typeof Permisos];
 

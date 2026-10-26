@@ -423,6 +423,7 @@ export const COM_ORDEN_COMPRA: EntityDescriptor = buildDescriptor({
     col("NUMERO_REFERENCIA", "numeroReferencia", "string", { nullable: true }),
     col("FECHA_EMISION", "fechaEmision", "timestamp", { insertable: false, updatable: false }),
     col("FECHA_ENTREGA_ESPERADA", "fechaEntregaEsperada", "timestamp"),
+    col("COSTO_ENVIO", "costoEnvio", "number", { nullable: true }),
   ],
   defaultSort: "idOrdenCompra",
   filterable: ["estado", "idProveedor", "idMoneda", "numeroReferencia"],

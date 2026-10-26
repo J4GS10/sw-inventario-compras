@@ -19,6 +19,7 @@ import type { IconName } from "../ui/Icon.js";
 import Icon from "../ui/Icon.js";
 import { FlowStepper } from "../ui/FlowStepper.js";
 import DashboardHero from "./DashboardHero.js";
+import DashboardRol from "./DashboardRol.js";
 import { TimeBars, Gauge } from "../ui/Charts.js";
 import { estadoLabel } from "../core/estados.js";
 import { formatMoney } from "../core/format.js";
@@ -305,6 +306,9 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
 
       <FlowStepper onStep={props.onNavigateById} />
 
+      {/* --- Lo que le sirve a este rol para decidir (proveedores, ahorro, vigilancia, entregas) --- */}
+      <DashboardRol onNavigateById={props.onNavigateById} />
+
       {/* --- Mis solicitudes (solicitante / jefe que tambien solicita) --- */}
       {esSolicitante && misSolicitudes !== null && (
         <Card>
@@ -388,15 +392,18 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
             ))}
           </div>
 
-          <Card>
-            <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
-              Órdenes de compra por estado
-            </h3>
-            <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
-              Dónde están las órdenes activas del periodo.
-            </p>
-            <OrdenesPorEstado data={ocEstados} />
-          </Card>
+          {/* Solo a quien puede listar OC: si no, "no hay ordenes" seria falso (no es que no existan, es que no las ve). */}
+          {puedeVer("com-doc-ordenes") && (
+            <Card>
+              <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>
+                Órdenes de compra por estado
+              </h3>
+              <p className="mb-3 text-[0.8rem]" style={{ color: "var(--color-ink-soft)" }}>
+                Dónde están las órdenes activas del periodo.
+              </p>
+              <OrdenesPorEstado data={ocEstados} />
+            </Card>
+          )}
         </>
       )}
 

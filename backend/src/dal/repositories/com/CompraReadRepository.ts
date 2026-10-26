@@ -306,6 +306,38 @@ export interface RiesgoProveedorInsumo {
   readonly tieneArticulosEnEscasez: boolean;
 }
 
+/**
+ * Insumos de la evaluacion comparativa de un proveedor (descuento, plazo,
+ * cumplimiento, calidad y envio) sobre las OC vigentes del periodo. Montos en
+ * GTQ. `ordenesConEnvio` cuenta solo las OC donde el flete SI se registro
+ * (COSTO_ENVIO no nulo); `ordenesEnvioGratis` son las que lo registraron en 0.
+ */
+export interface EvaluacionProveedorRow {
+  readonly idProveedor: number;
+  readonly proveedor: string;
+  readonly nit: string;
+  readonly calificacion: string | null;
+  readonly diasCredito: number;
+  readonly ordenes: number;
+  readonly montoBruto: number;
+  readonly montoNeto: number;
+  readonly plazoPrometidoDias: number | null;
+  readonly ordenesCompletas: number;
+  readonly diasRealesEntrega: number | null;
+  readonly ordenesATiempo: number;
+  readonly cantidadRecibida: number;
+  readonly cantidadRechazada: number;
+  readonly ordenesConEnvio: number;
+  readonly ordenesEnvioGratis: number;
+  readonly costoEnvioTotal: number;
+}
+
+export interface EvaluacionProveedoresFiltro {
+  readonly desde?: string;
+  readonly hasta?: string;
+  readonly idCategoria?: number;
+}
+
 /** Monto de CxP pendiente agrupado por cuando vence (proyeccion de pagos). */
 export interface BucketPagoRow {
   readonly bucket: "VENCIDA" | "SEM1" | "SEM2" | "SEM3" | "SEM4" | "DESPUES" | "SIN_FECHA";
@@ -2113,6 +2145,123 @@ export class CompraReadRepository {
         });
       } catch (error) {
         throw mapOracleError(error, "COM_RECEPCION_DETALLE");
+      }
+    }, conn);
+  }
+
+  /**
+   * Evaluacion comparativa de proveedores sobre OC vigentes (no CANCELADA /
+   * RECHAZADA) emitidas en el rango. Con `idCategoria` solo cuentan las lineas
+   * de articulos de esa categoria (monto y descuento); los datos propios de la
+   * OC (plazo, cumplimiento, envio) se toman de las OC que tienen al menos una
+   * de esas lineas. Solo proveedores no eliminados.
+   */
+  public async evaluacionProveedores(
+    f: EvaluacionProveedoresFiltro,
+    conn?: Connection,
+  ): Promise<readonly EvaluacionProveedorRow[]> {
+    const sql = `
+      WITH lin AS (
+        SELECT
+          od.ID_ORDEN_COMPRA                                                      AS ID_ORDEN_COMPRA,
+          od.CANTIDAD * od.PRECIO_UNITARIO * oc.TASA_CAMBIO                       AS BRUTO,
+          od.CANTIDAD * od.PRECIO_UNITARIO
+            * (1 - od.PORCENTAJE_DESCUENTO / 100) * oc.TASA_CAMBIO                AS NETO
+        FROM COM_ORDEN_COMPRA oc
+        JOIN COM_ORDEN_COMPRA_DETALLE od
+          ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+        LEFT JOIN INV_ARTICULO a ON a.ID_ARTICULO = od.ID_ARTICULO
+        WHERE oc.ELIMINADO = 'N'
+          AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+          AND (:desde IS NULL OR oc.FECHA_EMISION >= TO_DATE(:desde, 'YYYY-MM-DD'))
+          AND (:hasta IS NULL OR oc.FECHA_EMISION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)
+          AND (:categoria IS NULL OR a.ID_CATEGORIA = :categoria)
+      ),
+      por_oc AS (
+        SELECT
+          oc.ID_ORDEN_COMPRA                                                      AS ID_ORDEN_COMPRA,
+          oc.ID_PROVEEDOR                                                         AS ID_PROVEEDOR,
+          oc.ESTADO                                                               AS ESTADO,
+          oc.FECHA_EMISION                                                        AS FECHA_EMISION,
+          oc.FECHA_ENTREGA_ESPERADA                                               AS FECHA_ENTREGA_ESPERADA,
+          oc.COSTO_ENVIO * oc.TASA_CAMBIO                                         AS ENVIO,
+          SUM(l.BRUTO)                                                            AS BRUTO,
+          SUM(l.NETO)                                                             AS NETO
+        FROM COM_ORDEN_COMPRA oc
+        JOIN lin l ON l.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA
+        GROUP BY oc.ID_ORDEN_COMPRA, oc.ID_PROVEEDOR, oc.ESTADO, oc.FECHA_EMISION,
+                 oc.FECHA_ENTREGA_ESPERADA, oc.COSTO_ENVIO, oc.TASA_CAMBIO
+      ),
+      rec AS (
+        SELECT
+          od.ID_ORDEN_COMPRA                                                      AS ID_ORDEN_COMPRA,
+          MAX(r.FECHA_RECEPCION)                                                  AS ULTIMA,
+          SUM(rd.CANTIDAD_RECIBIDA)                                               AS RECIBIDA,
+          SUM(rd.CANTIDAD_RECHAZADA)                                              AS RECHAZADA
+        FROM COM_RECEPCION_DETALLE rd
+        JOIN COM_RECEPCION r ON r.ID_RECEPCION = rd.ID_RECEPCION AND r.ELIMINADO = 'N'
+        JOIN COM_ORDEN_COMPRA_DETALLE od
+          ON od.ID_OC_DETALLE = rd.ID_OC_DETALLE AND od.ELIMINADO = 'N'
+        WHERE rd.ELIMINADO = 'N'
+        GROUP BY od.ID_ORDEN_COMPRA
+      )
+      SELECT
+        p.ID_PROVEEDOR                                                            AS ID_PROVEEDOR,
+        p.RAZON_SOCIAL                                                            AS PROVEEDOR,
+        p.NIT                                                                     AS NIT,
+        p.CALIFICACION                                                            AS CALIFICACION,
+        NVL(p.DIAS_CREDITO, 0)                                                    AS DIAS_CREDITO,
+        COUNT(*)                                                                  AS ORDENES,
+        NVL(SUM(o.BRUTO), 0)                                                      AS MONTO_BRUTO,
+        NVL(SUM(o.NETO), 0)                                                       AS MONTO_NETO,
+        AVG(TRUNC(o.FECHA_ENTREGA_ESPERADA) - TRUNC(o.FECHA_EMISION))             AS PLAZO_PROMETIDO,
+        COUNT(CASE WHEN o.ESTADO = 'RECIBIDA_COMPLETA' AND rc.ULTIMA IS NOT NULL
+                   THEN 1 END)                                                    AS COMPLETAS,
+        AVG(CASE WHEN o.ESTADO = 'RECIBIDA_COMPLETA' AND rc.ULTIMA IS NOT NULL
+                 THEN TRUNC(rc.ULTIMA) - TRUNC(o.FECHA_EMISION) END)              AS DIAS_REALES,
+        COUNT(CASE WHEN o.ESTADO = 'RECIBIDA_COMPLETA' AND rc.ULTIMA IS NOT NULL
+                    AND TRUNC(rc.ULTIMA) <= TRUNC(o.FECHA_ENTREGA_ESPERADA)
+                   THEN 1 END)                                                    AS A_TIEMPO,
+        NVL(SUM(rc.RECIBIDA), 0)                                                  AS RECIBIDA,
+        NVL(SUM(rc.RECHAZADA), 0)                                                 AS RECHAZADA,
+        COUNT(o.ENVIO)                                                            AS CON_ENVIO,
+        COUNT(CASE WHEN o.ENVIO = 0 THEN 1 END)                                   AS ENVIO_GRATIS,
+        NVL(SUM(o.ENVIO), 0)                                                      AS COSTO_ENVIO
+      FROM por_oc o
+      JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = o.ID_PROVEEDOR AND p.ELIMINADO = 'N'
+      LEFT JOIN rec rc ON rc.ID_ORDEN_COMPRA = o.ID_ORDEN_COMPRA
+      GROUP BY p.ID_PROVEEDOR, p.RAZON_SOCIAL, p.NIT, p.CALIFICACION, p.DIAS_CREDITO
+      ORDER BY p.RAZON_SOCIAL`;
+    const opt = (v: unknown): number | null =>
+      v === null || v === undefined ? null : Number(Number(v).toFixed(1));
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, {
+          desde: f.desde ?? null,
+          hasta: f.hasta ?? null,
+          categoria: f.idCategoria ?? null,
+        });
+        return (res.rows ?? []).map((r) => ({
+          idProveedor: num(r["ID_PROVEEDOR"]),
+          proveedor: str(r["PROVEEDOR"]),
+          nit: str(r["NIT"]),
+          calificacion: r["CALIFICACION"] === null ? null : str(r["CALIFICACION"]),
+          diasCredito: num(r["DIAS_CREDITO"]),
+          ordenes: num(r["ORDENES"]),
+          montoBruto: Number(num(r["MONTO_BRUTO"]).toFixed(2)),
+          montoNeto: Number(num(r["MONTO_NETO"]).toFixed(2)),
+          plazoPrometidoDias: opt(r["PLAZO_PROMETIDO"]),
+          ordenesCompletas: num(r["COMPLETAS"]),
+          diasRealesEntrega: opt(r["DIAS_REALES"]),
+          ordenesATiempo: num(r["A_TIEMPO"]),
+          cantidadRecibida: num(r["RECIBIDA"]),
+          cantidadRechazada: num(r["RECHAZADA"]),
+          ordenesConEnvio: num(r["CON_ENVIO"]),
+          ordenesEnvioGratis: num(r["ENVIO_GRATIS"]),
+          costoEnvioTotal: Number(num(r["COSTO_ENVIO"]).toFixed(2)),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "COM_ORDEN_COMPRA");
       }
     }, conn);
   }

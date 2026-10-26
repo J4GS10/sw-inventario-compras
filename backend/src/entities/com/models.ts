@@ -77,6 +77,8 @@ export interface OrdenCompra extends SoftDelete {
   readonly numeroReferencia: string | null;
   readonly fechaEmision: string;
   readonly fechaEntregaEsperada: string;
+  /** Flete cobrado por el proveedor (moneda de la OC). null = no registrado, 0 = envio gratuito. */
+  readonly costoEnvio: number | null;
   readonly creadoPor: number | null;
   readonly fechaCreacion: string;
   readonly version: number;

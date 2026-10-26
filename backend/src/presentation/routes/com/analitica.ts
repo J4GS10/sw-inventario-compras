@@ -126,7 +126,8 @@ export function registerComAnaliticaRoutes(app: FastifyInstance): void {
   // Dashboard: series temporales (compras/mes, rotacion) + indice de ahorro.
   app.get(
     "/api/com/dashboard/resumen",
-    { preHandler: authGuard(READ) },
+    // Compras por mes, rotacion y ahorro: informacion financiera -> reporte de gasto.
+    { preHandler: authGuard([Permisos.REPORTE_GASTO]) },
     async (req, reply) => {
       reply.send({ data: await dashboard.resumen(intQuery(req, "meses")) });
     },

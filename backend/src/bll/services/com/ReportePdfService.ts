@@ -10,7 +10,7 @@
  */
 
 import { PdfBuilder } from "../../../common/pdf/PdfBuilder.js";
-import { ReporteService } from "./ReporteService.js";
+import { ReporteService, type EvaluacionProveedoresInput } from "./ReporteService.js";
 
 function money(n: number): string {
   return `Q ${n.toLocaleString("es-GT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -232,6 +232,93 @@ export class ReportePdfService {
     );
 
     return { buffer: await pdf.build(), filename: "riesgo-proveedores.pdf" };
+  }
+
+  public async evaluacionProveedores(
+    input: EvaluacionProveedoresInput = {},
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const d = await this.reportes.evaluacionProveedores(input);
+    const pdf = new PdfBuilder({
+      title: "Evaluación de proveedores",
+      footer: "ERP Corporativo · Evaluación de proveedores",
+    });
+
+    const enfoque: Record<string, string> = {
+      equilibrado: "Equilibrado",
+      ahorro: "Priorizar ahorro",
+      rapidez: "Priorizar rapidez",
+      calidad: "Priorizar calidad",
+    };
+    pdf.title(
+      "Evaluación de proveedores",
+      `${rango(d.desde, d.hasta)} · Enfoque: ${enfoque[d.prioridad] ?? d.prioridad} · Mínimo ${d.minOrdenes} OC`,
+    );
+    pdf.kpiBand([
+      { label: "Monto neto (GTQ)", value: money(d.resumen.montoNeto), tone: "brand" },
+      { label: "Ahorro por descuentos", value: money(d.resumen.ahorroDescuento), tone: "success" },
+      { label: "Descuento promedio", value: pct(d.resumen.descuentoPromedioPct) },
+      {
+        label: "Días de entrega (prom.)",
+        value: d.resumen.diasEntregaPromedio === null ? "-" : `${d.resumen.diasEntregaPromedio} d`,
+      },
+    ]);
+
+    if (d.proveedores.length === 0) {
+      pdf.note("No hay órdenes de compra vigentes con estos filtros.");
+      return { buffer: await pdf.build(), filename: "evaluacion-proveedores.pdf" };
+    }
+
+    const m = d.mejores;
+    const lineaMejor = (etiqueta: string, x: { proveedor: string } | null, valor: string): string =>
+      `${etiqueta}: ${x === null ? "sin diferencias o datos suficientes" : `${x.proveedor} (${valor})`}`;
+    pdf.sectionTitle("Quién destaca en cada criterio");
+    pdf.note(
+      [
+        lineaMejor("Mayor descuento", m.descuento, m.descuento === null ? "" : pct(m.descuento.valor)),
+        lineaMejor("Entrega más rápida", m.entrega, m.entrega === null ? "" : `${m.entrega.valor} d`),
+        lineaMejor("Mejor cumplimiento de fecha", m.cumplimiento, m.cumplimiento === null ? "" : pct(m.cumplimiento.valor)),
+        lineaMejor("Menor rechazo", m.calidad, m.calidad === null ? "" : pct(m.calidad.valor)),
+        lineaMejor("Envío gratuito", m.envio, m.envio === null ? "" : `${pct(m.envio.valor)} de sus OC`),
+        lineaMejor("Más conveniente", m.conveniencia, m.conveniencia === null ? "" : `score ${m.conveniencia.valor}`),
+      ].join("  |  "),
+    );
+
+    pdf.sectionTitle("Índice de conveniencia (0-100, top 12)");
+    pdf.barChart(
+      d.proveedores.filter((p) => p.elegible).slice(0, 12).map((p) => ({ label: p.proveedor, value: p.score })),
+      (n) => String(n),
+    );
+
+    pdf.sectionTitle("Detalle por proveedor");
+    pdf.table(
+      [
+        { header: "Proveedor", width: 130 },
+        { header: "OC", width: 28, align: "right" },
+        { header: "Monto (GTQ)", width: 72, align: "right" },
+        { header: "Desc.", width: 40, align: "right" },
+        { header: "Días ent.", width: 44, align: "right" },
+        { header: "A tiempo", width: 46, align: "right" },
+        { header: "Rechazo", width: 46, align: "right" },
+        { header: "Envío grat.", width: 50, align: "right" },
+        { header: "Score", width: 33, align: "right" },
+      ],
+      d.proveedores.map((p) => [
+        p.proveedor,
+        String(p.ordenes),
+        money(p.montoNeto),
+        pct(p.descuentoPct),
+        p.diasEntrega === null ? "-" : `${p.diasEntrega}${p.diasEntregaEsPrometido ? "*" : ""}`,
+        p.porcentajeATiempo === null ? "-" : pct(p.porcentajeATiempo),
+        p.porcentajeRechazo === null ? "-" : pct(p.porcentajeRechazo),
+        p.porcentajeEnvioGratis === null ? "s/d" : pct(p.porcentajeEnvioGratis),
+        p.elegible ? String(p.score) : "n/c",
+      ]),
+    );
+    pdf.note(
+      "Descuento: ponderado por monto. Días de entrega: reales (emisión a última recepción); * = plazo prometido, aún sin OC completas. Envío grat.: % de las OC con flete registrado que fueron gratuitas (s/d = sin dato registrado). n/c: no compite (menos OC que el mínimo). El score compara solo entre los proveedores listados y pondera cada criterio según el enfoque elegido.",
+    );
+
+    return { buffer: await pdf.build(), filename: "evaluacion-proveedores.pdf" };
   }
 
   private filename(base: string, desde?: string, hasta?: string): string {

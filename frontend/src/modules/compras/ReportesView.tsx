@@ -26,13 +26,28 @@ import { FilterBar } from "../../ui/FilterBar.js";
 import { Field, FormGrid, type FieldValue } from "../../ui/Field.js";
 import { useToast } from "../../ui/Toast.js";
 import { formatMoney, formatPercent } from "../../core/format.js";
-
-type ReporteId = "gasto" | "pendientes" | "desempeno" | "riesgo";
+import { useAuth } from "../../core/auth/AuthContext.js";
+import {
+  PRIORIDAD_POR_PERFIL,
+  perfilAnalitico,
+  reportesVisibles,
+  type ReporteId,
+} from "../../core/auth/perfilAnalitico.js";
+import EvaluacionProveedoresView from "./EvaluacionProveedores.js";
 
 const AYUDA_REPORTES = {
   title: "Reportes — que calcula cada uno",
   body: (
     <>
+      <p>
+        <b>Evaluación de proveedores</b>: compara a los proveedores en
+        descuento (ponderado por monto), días de entrega, cumplimiento de la
+        fecha prometida, rechazo y envío gratuito o costo de flete, con un
+        score 0-100 según el enfoque que elijas (equilibrado, ahorro, rapidez
+        o calidad). Filtra por periodo, categoría de artículo, mínimo de
+        órdenes o solo envío gratuito. Las pestañas que ves y su orden
+        dependen de tu rol.
+      </p>
       <p>
         <b>Gasto por proveedor</b>: suma el monto (neto de descuento, en GTQ)
         de las órdenes de compra emitidas en el rango de fechas — excluye
@@ -65,12 +80,13 @@ const AYUDA_REPORTES = {
   ),
 };
 
-const TABS: readonly { id: ReporteId; label: string }[] = [
-  { id: "gasto", label: "Gasto por proveedor" },
-  { id: "pendientes", label: "Órdenes pendientes de recibir" },
-  { id: "desempeno", label: "Desempeño de proveedores" },
-  { id: "riesgo", label: "Riesgo de proveedores" },
-];
+const TAB_LABEL: Record<ReporteId, string> = {
+  evaluacion: "Evaluación de proveedores",
+  gasto: "Gasto por proveedor",
+  pendientes: "Órdenes pendientes de recibir",
+  desempeno: "Desempeño de proveedores",
+  riesgo: "Riesgo de proveedores",
+};
 
 /** Filtro de fecha compartido por los reportes "gasto" y "desempeno". */
 function RangoFechas(props: {
@@ -216,7 +232,12 @@ const riesgoColumns: readonly Column<RiesgoProveedorItem>[] = [
 
 export default function ReportesView(): React.ReactElement {
   const toast = useToast();
-  const [tab, setTab] = useState<ReporteId>("gasto");
+  const { sesion } = useAuth();
+  // Pestañas y orden segun el rol: cada gerencia abre en lo que le sirve para decidir.
+  const perfil = perfilAnalitico(sesion?.permisos ?? [], sesion?.roles ?? []);
+  const permitidos = reportesVisibles(sesion?.permisos ?? [], sesion?.roles ?? []);
+  const tabs = permitidos.map((id) => ({ id, label: TAB_LABEL[id] }));
+  const [tab, setTab] = useState<ReporteId | null>(permitidos[0] ?? null);
 
   const [rangoGasto, setRangoGasto] = useState({ desde: "", hasta: "" });
   const [gasto, setGasto] = useState<ReporteGastoProveedor | null>(null);
@@ -285,10 +306,11 @@ export default function ReportesView(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    void cargarGasto();
-    void cargarPendientes();
-    void cargarDesempeno();
-    void cargarRiesgo();
+    if (permitidos.includes("gasto")) void cargarGasto();
+    if (permitidos.includes("pendientes")) void cargarPendientes();
+    if (permitidos.includes("desempeno")) void cargarDesempeno();
+    if (permitidos.includes("riesgo")) void cargarRiesgo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cargarGasto, cargarPendientes, cargarDesempeno, cargarRiesgo]);
 
   async function descargarGastoPdf(): Promise<void> {
@@ -336,11 +358,21 @@ export default function ReportesView(): React.ReactElement {
     <div className="grid grid-cols-1 gap-4">
       <PageHeader
         title="Reportes"
-        subtitle="Gasto, atrasos y desempeño de proveedores, listos para exportar a PDF."
+        subtitle="Lo que tu rol necesita para decidir: proveedores, gasto y entregas, con filtros y PDF."
         help={AYUDA_REPORTES}
       />
 
-      <Tabs tabs={TABS} active={tab} onChange={(id) => setTab(id as ReporteId)} />
+      {tab === null && (
+        <Card>
+          <p className="text-[0.85rem]" style={{ color: "var(--color-ink-soft)" }}>
+            Tu rol no tiene reportes asignados.
+          </p>
+        </Card>
+      )}
+
+      {tab !== null && tabs.length > 1 && <Tabs tabs={tabs} active={tab} onChange={(id) => setTab(id as ReporteId)} />}
+
+      {tab === "evaluacion" && <EvaluacionProveedoresView prioridadInicial={PRIORIDAD_POR_PERFIL[perfil]} />}
 
       {tab === "gasto" && (
         <div className="grid grid-cols-1 gap-4">

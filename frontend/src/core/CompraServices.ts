@@ -314,6 +314,80 @@ export interface ReporteRiesgoProveedores {
   generadoEn: string;
 }
 
+export type PrioridadEvaluacion = "equilibrado" | "ahorro" | "rapidez" | "calidad";
+
+/** Filtros de la evaluacion de proveedores (se envian como query; vacios se omiten). */
+export interface FiltroEvaluacion {
+  desde?: string;
+  hasta?: string;
+  idCategoria?: number | null;
+  minOrdenes?: number;
+  prioridad?: PrioridadEvaluacion;
+  soloEnvioGratis?: boolean;
+}
+
+export interface EvaluacionProveedorItem {
+  idProveedor: number;
+  proveedor: string;
+  nit: string;
+  calificacion: string | null;
+  diasCredito: number;
+  ordenes: number;
+  montoBruto: number;
+  montoNeto: number;
+  plazoPrometidoDias: number | null;
+  ordenesCompletas: number;
+  diasRealesEntrega: number | null;
+  ordenesATiempo: number;
+  cantidadRecibida: number;
+  cantidadRechazada: number;
+  ordenesConEnvio: number;
+  ordenesEnvioGratis: number;
+  costoEnvioTotal: number;
+  descuentoPct: number;
+  ahorroDescuento: number;
+  diasEntrega: number | null;
+  diasEntregaEsPrometido: boolean;
+  porcentajeATiempo: number | null;
+  porcentajeRechazo: number | null;
+  porcentajeEnvioGratis: number | null;
+  costoEnvioPromedio: number | null;
+  score: number;
+  elegible: boolean;
+}
+export interface MejorProveedor {
+  idProveedor: number;
+  proveedor: string;
+  valor: number;
+}
+export interface ReporteEvaluacionProveedores {
+  desde: string | null;
+  hasta: string | null;
+  idCategoria: number | null;
+  prioridad: PrioridadEvaluacion;
+  minOrdenes: number;
+  resumen: {
+    proveedores: number;
+    montoNeto: number;
+    ahorroDescuento: number;
+    descuentoPromedioPct: number;
+    diasEntregaPromedio: number | null;
+    porcentajeATiempo: number | null;
+    ordenesConEnvio: number;
+    ordenesEnvioGratis: number;
+  };
+  mejores: {
+    descuento: MejorProveedor | null;
+    entrega: MejorProveedor | null;
+    cumplimiento: MejorProveedor | null;
+    calidad: MejorProveedor | null;
+    envio: MejorProveedor | null;
+    conveniencia: MejorProveedor | null;
+  };
+  proveedores: EvaluacionProveedorItem[];
+  generadoEn: string;
+}
+
 export class ReporteAppService {
   private static instance: ReporteAppService | undefined;
   private constructor(
@@ -356,6 +430,24 @@ export class ReporteAppService {
   }
   public descargarDesempenoProveedoresPdf(desde?: string, hasta?: string): Promise<void> {
     return this.downloads.descargarReportePdf("desempeno-proveedores", this.rango(desde, hasta));
+  }
+
+  private filtroEvaluacion(f: FiltroEvaluacion): Record<string, string> {
+    const q = this.rango(f.desde, f.hasta);
+    if (f.idCategoria !== undefined && f.idCategoria !== null) q["idCategoria"] = String(f.idCategoria);
+    if (f.minOrdenes !== undefined && f.minOrdenes > 1) q["minOrdenes"] = String(f.minOrdenes);
+    if (f.prioridad !== undefined) q["prioridad"] = f.prioridad;
+    if (f.soloEnvioGratis === true) q["soloEnvioGratis"] = "1";
+    return q;
+  }
+  public evaluacionProveedores(f: FiltroEvaluacion = {}): Promise<ReporteEvaluacionProveedores> {
+    return this.http.get<ReporteEvaluacionProveedores>(
+      "/api/com/reportes/evaluacion-proveedores",
+      this.filtroEvaluacion(f),
+    );
+  }
+  public descargarEvaluacionProveedoresPdf(f: FiltroEvaluacion = {}): Promise<void> {
+    return this.downloads.descargarReportePdf("evaluacion-proveedores", this.filtroEvaluacion(f));
   }
 
   public riesgoProveedores(): Promise<ReporteRiesgoProveedores> {

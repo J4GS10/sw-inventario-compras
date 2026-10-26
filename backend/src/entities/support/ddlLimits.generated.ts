@@ -548,6 +548,23 @@ export const DDL_LIMITES: Readonly<Record<string, Readonly<Record<string, Limite
    "l": 1
   }
  },
+ "SEG_BORRADOR_USUARIO": {
+  "CLAVE": {
+   "l": 200
+  },
+  "ACTUALIZADO_EN": {
+   "p": 16,
+   "s": 0
+  }
+ },
+ "SEG_DELEGACION_APROBACION": {
+  "MOTIVO": {
+   "l": 200
+  },
+  "ESTADO": {
+   "l": 10
+  }
+ },
  "INV_CATEGORIA": {
   "NOMBRE": {
    "l": 100
@@ -1096,6 +1113,10 @@ export const DDL_LIMITES: Readonly<Record<string, Readonly<Record<string, Limite
   },
   "NUMERO_REFERENCIA": {
    "l": 50
+  },
+  "COSTO_ENVIO": {
+   "p": 12,
+   "s": 2
   },
   "ELIMINADO": {
    "l": 1

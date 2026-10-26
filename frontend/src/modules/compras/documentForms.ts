@@ -196,6 +196,7 @@ export const DOCUMENT_FORMS: Record<string, DocumentFormConfig> = {
       { name: "idMoneda", label: "Moneda", kind: "select", required: true, optionsFrom: MONEDAS, help: "Se toma de la cotización" },
       { name: "tasaCambio", label: "Tasa de cambio", kind: "rate", required: true, help: "Se toma de la cotización" },
       { name: "fechaEntregaEsperada", label: "Entrega esperada", kind: "datetime", required: true, minDate: "today", defaultDays: 14, help: "No puede ser anterior a hoy." },
+      { name: "costoEnvio", label: "Costo de envío", kind: "money", help: "Flete que cobra el proveedor. 0 = envío gratuito; vacío = no se sabe. Alimenta el reporte de evaluación de proveedores." },
       { name: "numeroReferencia", label: "Referencia", kind: "code", advanced: true },
     ],
     lineFields: [

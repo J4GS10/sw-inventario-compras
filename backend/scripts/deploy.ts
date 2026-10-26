@@ -200,6 +200,18 @@ async function ensureDelegaciones(conn: oracledb.Connection): Promise<void> {
   console.log("Migracion: tabla SEG_DELEGACION_APROBACION creada.");
 }
 
+/** Migracion idempotente: COM_ORDEN_COMPRA.COSTO_ENVIO (flete; NULL = no registrado, 0 = envio gratuito). */
+async function ensureCostoEnvio(conn: oracledb.Connection): Promise<void> {
+  const r = await conn.execute<{ N: number }>(
+    `SELECT COUNT(*) AS N FROM USER_TAB_COLUMNS WHERE TABLE_NAME = 'COM_ORDEN_COMPRA' AND COLUMN_NAME = 'COSTO_ENVIO'`,
+  );
+  if (Number(r.rows?.[0]?.N ?? 0) > 0) return;
+  await conn.execute(
+    `ALTER TABLE COM_ORDEN_COMPRA ADD (COSTO_ENVIO NUMBER(12,2) CHECK (COSTO_ENVIO IS NULL OR COSTO_ENVIO >= 0))`,
+  );
+  console.log("Migracion: columna COM_ORDEN_COMPRA.COSTO_ENVIO creada.");
+}
+
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2));
   const cfg = await loadEnv();
@@ -211,6 +223,7 @@ async function main(): Promise<void> {
     }
     await ensureBorradores(conn);
     await ensureDelegaciones(conn);
+    await ensureCostoEnvio(conn);
     if (!args.has("--no-seed")) {
       await runSeed(conn);
     }
