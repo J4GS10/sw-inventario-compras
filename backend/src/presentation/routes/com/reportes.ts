@@ -9,6 +9,7 @@
  *   GET /api/com/reportes/desempeno-proveedores/pdf[?desde&hasta] PDF
  *   GET /api/com/reportes/riesgo-proveedores                      JSON
  *   GET /api/com/reportes/riesgo-proveedores/pdf                  PDF
+ *   GET /api/com/reportes/inventario-categoria                    JSON
  *   GET /api/com/reportes/evaluacion-proveedores[?desde&hasta&idCategoria&minOrdenes&prioridad&soloEnvioGratis]  JSON
  *   GET /api/com/reportes/evaluacion-proveedores/pdf[?mismos filtros]                                            PDF
  *
@@ -36,6 +37,7 @@ const R_GASTO = [Permisos.REPORTE_GASTO];
 const R_ENTREGAS = [Permisos.REPORTE_ENTREGAS];
 const R_DESEMPENO = [Permisos.REPORTE_DESEMPENO];
 const R_RIESGO = [Permisos.REPORTE_RIESGO];
+const R_INVENTARIO = [Permisos.REPORTE_INVENTARIO];
 
 function fechaQuery(request: FastifyRequest, key: string): string | undefined {
   const raw = (request.query as Record<string, string | undefined>)[key];
@@ -76,6 +78,14 @@ function enviarPdf(reply: import("fastify").FastifyReply, buffer: Buffer, filena
 }
 
 export function registerComReportesRoutes(app: FastifyInstance): void {
+  app.get(
+    "/api/com/reportes/inventario-categoria",
+    { preHandler: authGuard(R_INVENTARIO) },
+    async (_req, reply) => {
+      reply.send({ data: await reportes.inventarioPorCategoria() });
+    },
+  );
+
   app.get(
     "/api/com/reportes/evaluacion-proveedores",
     { preHandler: authGuard(R_EVALUACION) },

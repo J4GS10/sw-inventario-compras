@@ -28,6 +28,7 @@ export const Permisos = {
   REPORTE_ENTREGAS: "COMPRAS_REPORTE_ENTREGAS",
   REPORTE_DESEMPENO: "COMPRAS_REPORTE_DESEMPENO",
   REPORTE_RIESGO: "COMPRAS_REPORTE_RIESGO",
+  REPORTE_INVENTARIO: "COMPRAS_REPORTE_INVENTARIO",
 } as const;
 
 /** Cualquiera de estos habilita la pantalla de Reportes. */
@@ -37,6 +38,7 @@ export const PERMISOS_REPORTE: readonly string[] = [
   Permisos.REPORTE_ENTREGAS,
   Permisos.REPORTE_DESEMPENO,
   Permisos.REPORTE_RIESGO,
+  Permisos.REPORTE_INVENTARIO,
 ];
 
 export type PermisoCodigo = (typeof Permisos)[keyof typeof Permisos];

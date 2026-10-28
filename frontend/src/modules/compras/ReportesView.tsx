@@ -11,9 +11,11 @@ import {
   reporteService,
   type DesempenoProveedorItem,
   type GastoProveedorItem,
+  type InventarioCategoriaItem,
   type OcPendienteItem,
   type ReporteDesempenoProveedores,
   type ReporteGastoProveedor,
+  type ReporteInventarioCategoria,
   type ReporteOcPendientes,
   type ReporteRiesgoProveedores,
   type RiesgoProveedorItem,
@@ -73,7 +75,15 @@ const AYUDA_REPORTES = {
         fechas — el riesgo se evalúa con la trayectoria completa.
       </p>
       <p>
-        Cada pestaña tiene su botón <b>Descargar PDF</b> — genera el mismo
+        <b>Inventario por categoría</b>: fotografía de <i>hoy</i> de las
+        existencias que Compras alimenta con cada recepción, agrupadas por
+        categoría de artículo. El valor es la cantidad en existencia por su
+        costo promedio, y el % es la participación de la categoría en el valor
+        total. Solo cuenta lo recibido por compras: no descuenta ventas ni
+        salidas, que son del módulo de Inventarios.
+      </p>
+      <p>
+        Cada pestaña (salvo Inventario por categoría) tiene su botón <b>Descargar PDF</b> — genera el mismo
         reporte con los filtros activos, listo para compartir o archivar.
       </p>
     </>
@@ -86,6 +96,7 @@ const TAB_LABEL: Record<ReporteId, string> = {
   pendientes: "Órdenes pendientes de recibir",
   desempeno: "Desempeño de proveedores",
   riesgo: "Riesgo de proveedores",
+  inventario: "Inventario por categoría",
 };
 
 /** Filtro de fecha compartido por los reportes "gasto" y "desempeno". */
@@ -230,6 +241,21 @@ const riesgoColumns: readonly Column<RiesgoProveedorItem>[] = [
   },
 ];
 
+const inventarioColumns: readonly Column<InventarioCategoriaItem>[] = [
+  { key: "categoria", header: "Categoría", type: "text", value: (r) => r.categoria, grow: true },
+  { key: "articulos", header: "Artículos", type: "num", width: 100, value: (r) => r.articulos, priority: "secondary" },
+  { key: "unidades", header: "Unidades", type: "num", width: 110, value: (r) => r.unidades },
+  { key: "valor", header: "Valor total", type: "money", width: 140, value: (r) => r.valor },
+  {
+    key: "porcentaje",
+    header: "% del valor",
+    type: "num",
+    width: 110,
+    value: (r) => r.porcentaje,
+    render: (r) => formatPercent(r.porcentaje),
+  },
+];
+
 export default function ReportesView(): React.ReactElement {
   const toast = useToast();
   const { sesion } = useAuth();
@@ -256,6 +282,9 @@ export default function ReportesView(): React.ReactElement {
   const [riesgo, setRiesgo] = useState<ReporteRiesgoProveedores | null>(null);
   const [loadingRiesgo, setLoadingRiesgo] = useState(false);
   const [busyRiesgoPdf, setBusyRiesgoPdf] = useState(false);
+
+  const [inventario, setInventario] = useState<ReporteInventarioCategoria | null>(null);
+  const [loadingInventario, setLoadingInventario] = useState(false);
 
   const cargarGasto = useCallback(async (): Promise<void> => {
     setLoadingGasto(true);
@@ -305,13 +334,26 @@ export default function ReportesView(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const cargarInventario = useCallback(async (): Promise<void> => {
+    setLoadingInventario(true);
+    try {
+      setInventario(await reporteService.inventarioPorCategoria());
+    } catch (e: unknown) {
+      toast.error(messageOf(e));
+    } finally {
+      setLoadingInventario(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
+    if (permitidos.includes("inventario")) void cargarInventario();
     if (permitidos.includes("gasto")) void cargarGasto();
     if (permitidos.includes("pendientes")) void cargarPendientes();
     if (permitidos.includes("desempeno")) void cargarDesempeno();
     if (permitidos.includes("riesgo")) void cargarRiesgo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cargarGasto, cargarPendientes, cargarDesempeno, cargarRiesgo]);
+  }, [cargarGasto, cargarPendientes, cargarDesempeno, cargarRiesgo, cargarInventario]);
 
   async function descargarGastoPdf(): Promise<void> {
     setBusyGastoPdf(true);
@@ -500,6 +542,35 @@ export default function ReportesView(): React.ReactElement {
             <Card>
               <p className="text-[0.85rem]" style={{ color: "var(--color-ink-soft)" }}>
                 {loadingDesempeno ? "Cargando..." : "Sin datos."}
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {tab === "inventario" && (
+        <div className="grid grid-cols-1 gap-4">
+          {inventario !== null && (
+            <>
+              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+                <KpiCard label="Valor del inventario" value={formatMoney(inventario.valorTotal)} icon="coins" tone="brand" />
+                <KpiCard label="Unidades en existencia" value={String(inventario.unidadesTotal)} icon="package" tone="navy" />
+                <KpiCard label="Categorías" value={String(inventario.categorias.length)} icon="truck" tone="success" />
+              </div>
+              <DataTable<InventarioCategoriaItem>
+                columns={inventarioColumns}
+                rows={inventario.categorias}
+                rowKey={(r) => String(r.idCategoria ?? "sin-categoria")}
+                localSearch={{ placeholder: "Buscar categoría…" }}
+                loading={loadingInventario}
+                emptyTitle="Sin existencias registradas todavía"
+              />
+            </>
+          )}
+          {inventario === null && (
+            <Card>
+              <p className="text-[0.85rem]" style={{ color: "var(--color-ink-soft)" }}>
+                {loadingInventario ? "Cargando..." : "Sin datos."}
               </p>
             </Card>
           )}

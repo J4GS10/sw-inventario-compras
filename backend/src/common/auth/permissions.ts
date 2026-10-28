@@ -42,6 +42,7 @@ export const Permisos = {
   REPORTE_ENTREGAS: "COMPRAS_REPORTE_ENTREGAS",
   REPORTE_DESEMPENO: "COMPRAS_REPORTE_DESEMPENO",
   REPORTE_RIESGO: "COMPRAS_REPORTE_RIESGO",
+  REPORTE_INVENTARIO: "COMPRAS_REPORTE_INVENTARIO",
 } as const;
 
 /** Los reportes (y el resumen financiero del Dashboard): cualquiera de estos habilita la pantalla de Reportes. */
@@ -51,6 +52,7 @@ export const PERMISOS_REPORTE: readonly string[] = [
   Permisos.REPORTE_ENTREGAS,
   Permisos.REPORTE_DESEMPENO,
   Permisos.REPORTE_RIESGO,
+  Permisos.REPORTE_INVENTARIO,
 ];
 
 export type PermisoCodigo = (typeof Permisos)[keyof typeof Permisos];
@@ -76,6 +78,7 @@ export const PERMISO_META: Record<PermisoCodigo, { nombre: string; descripcion: 
   [Permisos.REPORTE_ENTREGAS]: { nombre: "Reporte: órdenes pendientes de recibir", descripcion: "Órdenes por recibir y entregas atrasadas" },
   [Permisos.REPORTE_DESEMPENO]: { nombre: "Reporte: desempeño de proveedores", descripcion: "Tiempos de entrega y rechazo por proveedor" },
   [Permisos.REPORTE_RIESGO]: { nombre: "Reporte: riesgo de proveedores", descripcion: "Score de confiabilidad por proveedor" },
+  [Permisos.REPORTE_INVENTARIO]: { nombre: "Reporte: valor de inventario por categoría", descripcion: "Cuánto inventario hay y cuánto vale, por categoría" },
 };
 
 /** Roles del modulo y sus permisos. */
@@ -143,6 +146,7 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.REPORTE_GASTO,
       Permisos.REPORTE_ENTREGAS,
       Permisos.REPORTE_RIESGO,
+      Permisos.REPORTE_INVENTARIO,
     ],
   },
   BODEGA: {
@@ -163,6 +167,7 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.REPORTE_GASTO,
       Permisos.REPORTE_DESEMPENO,
       Permisos.REPORTE_RIESGO,
+      Permisos.REPORTE_INVENTARIO,
     ],
   },
   ADMIN_COMPRAS: {

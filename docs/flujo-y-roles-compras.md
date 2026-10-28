@@ -193,6 +193,7 @@ con él toma una decisión propia.*
 | OC pendientes de recibir (`REPORTE_ENTREGAS`) | Seguimiento de entregas / compromisos de caja | ✔ | ✔ | – | – |
 | Desempeño de proveedores (`REPORTE_DESEMPENO`) | ¿Cumplen? Entrega y rechazo | ✔ | – | ✔ | – |
 | Riesgo de proveedores (`REPORTE_RIESGO`) | De quién es riesgoso depender | – | ✔ | ✔ | – |
+| Inventario por categoría (`REPORTE_INVENTARIO`) | Cuánto inventario hay y cuánto vale (valor total y % por categoría; solo lo recibido por Compras) | – | ✔ | ✔ | – |
 
 Cada área recibe 3 de los 5 reportes, y ninguna recibe el mismo conjunto:
 Compras = *operar* (comprar, recibir, evaluar cumplimiento); Finanzas =

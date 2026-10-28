@@ -272,6 +272,15 @@ export interface GastoProveedorRow {
   readonly monto: number;
 }
 
+/** Inventario valorizado de una categoria de articulos (existencias x costo promedio). */
+export interface InventarioCategoriaRow {
+  readonly idCategoria: number | null;
+  readonly categoria: string;
+  readonly articulos: number;
+  readonly unidades: number;
+  readonly valor: number;
+}
+
 /** Orden de compra aun no recibida por completo, con dias transcurridos. */
 export interface OcPendienteRow {
   readonly idOrdenCompra: number;
@@ -2018,6 +2027,45 @@ export class CompraReadRepository {
         }));
       } catch (error) {
         throw mapOracleError(error, "COM_ORDEN_COMPRA");
+      }
+    }, conn);
+  }
+
+  /**
+   * Inventario valorizado por categoria de articulo: unidades en existencia y
+   * valor (cantidad x costo promedio vigente de cada bodega). Solo lectura sobre
+   * INV_EXISTENCIA_BODEGA, que alimenta la recepcion de Compras. Los articulos
+   * sin categoria se agrupan como "Sin categoria". Mayor valor primero.
+   */
+  public async inventarioPorCategoria(
+    conn?: Connection,
+  ): Promise<readonly InventarioCategoriaRow[]> {
+    const sql = `
+      SELECT
+        c.ID_CATEGORIA                                                  AS ID_CATEGORIA,
+        NVL(c.NOMBRE, 'Sin categoría')                                  AS CATEGORIA,
+        COUNT(DISTINCT a.ID_ARTICULO)                                   AS ARTICULOS,
+        NVL(SUM(e.CANTIDAD_ACTUAL), 0)                                  AS UNIDADES,
+        NVL(SUM(e.CANTIDAD_ACTUAL * e.COSTO_PROMEDIO_ACTUAL), 0)        AS VALOR
+      FROM INV_EXISTENCIA_BODEGA e
+      JOIN INV_ARTICULO a ON a.ID_ARTICULO = e.ID_ARTICULO AND a.ELIMINADO = 'N'
+      LEFT JOIN INV_CATEGORIA c ON c.ID_CATEGORIA = a.ID_CATEGORIA AND c.ELIMINADO = 'N'
+      WHERE e.ELIMINADO = 'N'
+        AND e.CANTIDAD_ACTUAL > 0
+      GROUP BY c.ID_CATEGORIA, NVL(c.NOMBRE, 'Sin categoría')
+      ORDER BY VALOR DESC, CATEGORIA`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql);
+        return (res.rows ?? []).map((r) => ({
+          idCategoria: r["ID_CATEGORIA"] === null || r["ID_CATEGORIA"] === undefined ? null : num(r["ID_CATEGORIA"]),
+          categoria: str(r["CATEGORIA"]),
+          articulos: num(r["ARTICULOS"]),
+          unidades: Number(num(r["UNIDADES"]).toFixed(2)),
+          valor: Number(num(r["VALOR"]).toFixed(2)),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "INV_EXISTENCIA_BODEGA");
       }
     }, conn);
   }

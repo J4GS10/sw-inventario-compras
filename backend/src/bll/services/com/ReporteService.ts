@@ -11,6 +11,7 @@ import {
   type DesempenoProveedorRow,
   type EvaluacionProveedorRow,
   type GastoProveedorRow,
+  type InventarioCategoriaRow,
   type OcPendienteRow,
   type RiesgoProveedorInsumo,
 } from "../../../dal/repositories/com/CompraReadRepository.js";
@@ -24,6 +25,18 @@ export interface ReporteGastoProveedor {
   readonly montoTotal: number;
   readonly ordenesTotal: number;
   readonly proveedores: readonly GastoProveedorItem[];
+  readonly generadoEn: string;
+}
+
+export interface InventarioCategoriaItem extends InventarioCategoriaRow {
+  /** Participacion de la categoria en el valor total del inventario (0-100). */
+  readonly porcentaje: number;
+}
+export interface ReporteInventarioCategoria {
+  readonly valorTotal: number;
+  readonly unidadesTotal: number;
+  readonly articulosTotal: number;
+  readonly categorias: readonly InventarioCategoriaItem[];
   readonly generadoEn: string;
 }
 
@@ -269,6 +282,22 @@ export class ReporteService {
       proveedores: filas.map((r) => ({
         ...r,
         porcentaje: montoTotal > 0 ? Number(((r.monto / montoTotal) * 100).toFixed(1)) : 0,
+      })),
+      generadoEn: new Date().toISOString(),
+    };
+  }
+
+  /** Cuanto inventario hay y cuanto vale, por categoria, con su % del valor total. */
+  public async inventarioPorCategoria(): Promise<ReporteInventarioCategoria> {
+    const filas = await this.read.inventarioPorCategoria();
+    const valorTotal = Number(filas.reduce((a, r) => a + r.valor, 0).toFixed(2));
+    return {
+      valorTotal,
+      unidadesTotal: Number(filas.reduce((a, r) => a + r.unidades, 0).toFixed(2)),
+      articulosTotal: filas.reduce((a, r) => a + r.articulos, 0),
+      categorias: filas.map((r) => ({
+        ...r,
+        porcentaje: valorTotal > 0 ? Number(((r.valor / valorTotal) * 100).toFixed(1)) : 0,
       })),
       generadoEn: new Date().toISOString(),
     };

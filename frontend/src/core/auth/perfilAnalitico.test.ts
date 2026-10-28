@@ -5,8 +5,8 @@ import { PRIORIDAD_POR_PERFIL, perfilAnalitico, reportesVisibles } from "./perfi
 const R = Permisos;
 // Espejo de los permisos que da backend/src/common/auth/permissions.ts a cada rol.
 const COMPRADOR = [R.SOLICITUD_VER, R.RFQ_GESTIONAR, R.COTIZACION_GESTIONAR, R.OC_GESTIONAR, R.CATALOGO_VER, R.ANALISIS_VER, R.REPORTE_EVALUACION, R.REPORTE_ENTREGAS, R.REPORTE_DESEMPENO];
-const FINANCIERO = [R.SOLICITUD_VER, R.COTIZACION_ADJUDICAR, R.OC_GESTIONAR, R.CATALOGO_ADMIN, R.ANALISIS_VER, R.REPORTE_GASTO, R.REPORTE_ENTREGAS, R.REPORTE_RIESGO];
-const AUDITOR = [R.SOLICITUD_VER, R.CATALOGO_VER, R.ANALISIS_VER, R.REPORTE_GASTO, R.REPORTE_DESEMPENO, R.REPORTE_RIESGO];
+const FINANCIERO = [R.SOLICITUD_VER, R.COTIZACION_ADJUDICAR, R.OC_GESTIONAR, R.CATALOGO_ADMIN, R.ANALISIS_VER, R.REPORTE_GASTO, R.REPORTE_ENTREGAS, R.REPORTE_RIESGO, R.REPORTE_INVENTARIO];
+const AUDITOR = [R.SOLICITUD_VER, R.CATALOGO_VER, R.ANALISIS_VER, R.REPORTE_GASTO, R.REPORTE_DESEMPENO, R.REPORTE_RIESGO, R.REPORTE_INVENTARIO];
 const GERENTE = [R.SOLICITUD_VER, R.SOLICITUD_APROBAR_GERENTE, R.CATALOGO_VER, R.ANALISIS_VER];
 const JEFE = [R.SOLICITUD_CREAR, R.SOLICITUD_VER, R.SOLICITUD_APROBAR_JEFE, R.CATALOGO_VER, R.ANALISIS_VER];
 const SOLICITANTE = [R.SOLICITUD_CREAR, R.SOLICITUD_VER, R.CATALOGO_VER, R.ANALISIS_VER];
@@ -25,9 +25,9 @@ describe("perfilAnalitico", () => {
 
   it("cada área ve SOLO los reportes que le corresponden (y son distintos entre sí)", () => {
     expect(reportesVisibles(COMPRADOR, [])).toEqual(["evaluacion", "pendientes", "desempeno"]);
-    expect(reportesVisibles(FINANCIERO, [])).toEqual(["gasto", "riesgo", "pendientes"]);
-    expect(reportesVisibles(AUDITOR, ["AUDITOR"])).toEqual(["riesgo", "desempeno", "gasto"]);
-    expect(reportesVisibles(["*"], [])).toHaveLength(5);
+    expect(reportesVisibles(FINANCIERO, [])).toEqual(["inventario", "gasto", "riesgo", "pendientes"]);
+    expect(reportesVisibles(AUDITOR, ["AUDITOR"])).toEqual(["riesgo", "desempeno", "gasto", "inventario"]);
+    expect(reportesVisibles(["*"], [])).toHaveLength(6);
   });
 
   it("gerencia de área, jefes, solicitantes y bodega no ven ningún reporte", () => {

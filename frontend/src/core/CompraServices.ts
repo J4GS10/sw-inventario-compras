@@ -314,6 +314,22 @@ export interface ReporteRiesgoProveedores {
   generadoEn: string;
 }
 
+export interface InventarioCategoriaItem {
+  idCategoria: number | null;
+  categoria: string;
+  articulos: number;
+  unidades: number;
+  valor: number;
+  porcentaje: number;
+}
+export interface ReporteInventarioCategoria {
+  valorTotal: number;
+  unidadesTotal: number;
+  articulosTotal: number;
+  categorias: InventarioCategoriaItem[];
+  generadoEn: string;
+}
+
 export type PrioridadEvaluacion = "equilibrado" | "ahorro" | "rapidez" | "calidad";
 
 /** Filtros de la evaluacion de proveedores (se envian como query; vacios se omiten). */
@@ -455,6 +471,10 @@ export class ReporteAppService {
   }
   public descargarRiesgoProveedoresPdf(): Promise<void> {
     return this.downloads.descargarReportePdf("riesgo-proveedores", {});
+  }
+
+  public inventarioPorCategoria(): Promise<ReporteInventarioCategoria> {
+    return this.http.get<ReporteInventarioCategoria>("/api/com/reportes/inventario-categoria");
   }
 }
 

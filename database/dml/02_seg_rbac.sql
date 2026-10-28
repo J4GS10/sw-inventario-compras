@@ -7,7 +7,7 @@
 -- backend/src/common/auth/permissions.ts (fuente de verdad en codigo).
 -- ============================================================================
 
--- ---- Permisos (SEG_PERMISO) — 19 permisos del modulo COMPRAS ----------------
+-- ---- Permisos (SEG_PERMISO) — 20 permisos del modulo COMPRAS ----------------
 -- Principio de acceso: quien no gestiona/acciona un recurso, no lo ve. Se
 -- probaron permisos "*_VER" de solo lectura por recurso (para que gerencias/
 -- auditoria tuvieran trazabilidad sin poder editar) y se revirtieron a
@@ -34,7 +34,8 @@ SELECT v.c, v.n, 'COMPRAS', v.d FROM (
   SELECT 'COMPRAS_REPORTE_GASTO',                 'Reporte: gasto por proveedor',      'Gasto por proveedor y resumen financiero del Dashboard'          FROM dual UNION ALL
   SELECT 'COMPRAS_REPORTE_ENTREGAS',              'Reporte: órdenes pendientes de recibir','Órdenes por recibir y entregas atrasadas'                    FROM dual UNION ALL
   SELECT 'COMPRAS_REPORTE_DESEMPENO',             'Reporte: desempeño de proveedores', 'Tiempos de entrega y rechazo por proveedor'                      FROM dual UNION ALL
-  SELECT 'COMPRAS_REPORTE_RIESGO',                'Reporte: riesgo de proveedores',    'Score de confiabilidad por proveedor'                            FROM dual
+  SELECT 'COMPRAS_REPORTE_RIESGO',                'Reporte: riesgo de proveedores',    'Score de confiabilidad por proveedor'                            FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_INVENTARIO',            'Reporte: valor de inventario por categoría','Cuánto inventario hay y cuánto vale, por categoría'            FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM SEG_PERMISO p WHERE p.CODIGO = v.c);
 
@@ -147,6 +148,7 @@ FROM (
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_GASTO' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_ENTREGAS' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_RIESGO' FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_INVENTARIO' FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_RECEPCION_GESTIONAR'         FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_DEVOLUCION_GESTIONAR'        FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
@@ -157,7 +159,8 @@ FROM (
   SELECT 'AUDITOR',         'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
   SELECT 'AUDITOR', 'COMPRAS_REPORTE_GASTO' FROM dual UNION ALL
   SELECT 'AUDITOR', 'COMPRAS_REPORTE_DESEMPENO' FROM dual UNION ALL
-  SELECT 'AUDITOR', 'COMPRAS_REPORTE_RIESGO' FROM dual
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_RIESGO' FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_INVENTARIO' FROM dual
 ) v
 JOIN SEG_ROL r     ON r.CODIGO = v.rol  AND r.ELIMINADO = 'N'
 JOIN SEG_PERMISO p ON p.CODIGO = v.perm AND p.ELIMINADO = 'N'

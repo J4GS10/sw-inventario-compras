@@ -14,7 +14,7 @@ import type { PrioridadEvaluacion } from "../CompraServices.js";
 
 export type PerfilAnalitico = "total" | "comprador" | "financiero" | "auditor" | "gerencia" | "solicitante";
 
-export type ReporteId = "evaluacion" | "gasto" | "pendientes" | "desempeno" | "riesgo";
+export type ReporteId = "evaluacion" | "gasto" | "pendientes" | "desempeno" | "riesgo" | "inventario";
 
 export function perfilAnalitico(permisos: readonly string[], roles: readonly string[]): PerfilAnalitico {
   if (permisos.includes("*")) return "total";
@@ -37,19 +37,20 @@ export const PERMISO_DE_REPORTE: Record<ReporteId, string> = {
   pendientes: Permisos.REPORTE_ENTREGAS,
   desempeno: Permisos.REPORTE_DESEMPENO,
   riesgo: Permisos.REPORTE_RIESGO,
+  inventario: Permisos.REPORTE_INVENTARIO,
 };
 
 /** Orden preferido de las pestanas por perfil; solo cambia el ORDEN, el acceso lo da el permiso. */
 const ORDEN_POR_PERFIL: Record<PerfilAnalitico, readonly ReporteId[]> = {
-  total: ["evaluacion", "gasto", "pendientes", "desempeno", "riesgo"],
+  total: ["evaluacion", "gasto", "pendientes", "desempeno", "riesgo", "inventario"],
   // Compras decide a quien comprarle y vigila lo que esta por llegar.
-  comprador: ["evaluacion", "pendientes", "desempeno", "riesgo", "gasto"],
+  comprador: ["evaluacion", "pendientes", "desempeno", "riesgo", "gasto", "inventario"],
   // Finanzas decide con base en costo: gasto, descuentos/fletes, riesgo y caja.
-  financiero: ["gasto", "riesgo", "pendientes", "evaluacion", "desempeno"],
+  financiero: ["inventario", "gasto", "riesgo", "pendientes", "evaluacion", "desempeno"],
   // Auditoria revisa cumplimiento y riesgo.
-  auditor: ["riesgo", "desempeno", "gasto", "pendientes", "evaluacion"],
-  gerencia: ["gasto", "pendientes", "desempeno", "riesgo", "evaluacion"],
-  solicitante: ["gasto", "pendientes", "desempeno", "riesgo", "evaluacion"],
+  auditor: ["riesgo", "desempeno", "gasto", "inventario", "pendientes", "evaluacion"],
+  gerencia: ["gasto", "pendientes", "desempeno", "riesgo", "evaluacion", "inventario"],
+  solicitante: ["gasto", "pendientes", "desempeno", "riesgo", "evaluacion", "inventario"],
 };
 
 /**

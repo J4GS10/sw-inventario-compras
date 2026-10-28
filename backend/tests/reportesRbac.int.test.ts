@@ -68,6 +68,14 @@ describe("reportes: acceso por area", () => {
     }
   }, 60_000);
 
+  it("el inventario por categoría solo lo ven finanzas, auditoría y admin (sin PDF)", async () => {
+    const permitidos: readonly Usuario[] = ["financiero", "auditor", "admin"];
+    for (const u of USUARIOS) {
+      const res = await app.inject({ method: "GET", url: "/api/com/reportes/inventario-categoria", headers: auth(u) });
+      expect(res.statusCode, u).toBe(permitidos.includes(u) ? 200 : 403);
+    }
+  });
+
   it("las áreas sin reportes no traen ningún permiso de reporte en la sesión", async () => {
     for (const u of ["gerente", "jefe", "solicitante", "bodega"] as const) {
       const res = await app.inject({ method: "GET", url: "/api/auth/me", headers: auth(u) });
