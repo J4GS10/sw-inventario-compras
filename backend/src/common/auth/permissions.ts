@@ -43,6 +43,12 @@ export const Permisos = {
   REPORTE_DESEMPENO: "COMPRAS_REPORTE_DESEMPENO",
   REPORTE_RIESGO: "COMPRAS_REPORTE_RIESGO",
   REPORTE_INVENTARIO: "COMPRAS_REPORTE_INVENTARIO",
+  /** Antes de pedir: existencia, en transito y solicitudes en curso por articulo. */
+  REPORTE_DISPONIBILIDAD: "COMPRAS_REPORTE_DISPONIBILIDAD",
+  /** Gasto y aprobaciones por departamento (acotado al alcance de jefes y gerentes). */
+  REPORTE_GASTO_AREA: "COMPRAS_REPORTE_GASTO_AREA",
+  /** Hallazgos de control interno: autoaprobaciones, compras sin competencia, sobreprecios. */
+  REPORTE_AUDITORIA: "COMPRAS_REPORTE_AUDITORIA",
 } as const;
 
 /** Los reportes (y el resumen financiero del Dashboard): cualquiera de estos habilita la pantalla de Reportes. */
@@ -53,6 +59,9 @@ export const PERMISOS_REPORTE: readonly string[] = [
   Permisos.REPORTE_DESEMPENO,
   Permisos.REPORTE_RIESGO,
   Permisos.REPORTE_INVENTARIO,
+  Permisos.REPORTE_DISPONIBILIDAD,
+  Permisos.REPORTE_GASTO_AREA,
+  Permisos.REPORTE_AUDITORIA,
 ];
 
 export type PermisoCodigo = (typeof Permisos)[keyof typeof Permisos];
@@ -79,13 +88,23 @@ export const PERMISO_META: Record<PermisoCodigo, { nombre: string; descripcion: 
   [Permisos.REPORTE_DESEMPENO]: { nombre: "Reporte: desempeño de proveedores", descripcion: "Tiempos de entrega y rechazo por proveedor" },
   [Permisos.REPORTE_RIESGO]: { nombre: "Reporte: riesgo de proveedores", descripcion: "Score de confiabilidad por proveedor" },
   [Permisos.REPORTE_INVENTARIO]: { nombre: "Reporte: valor de inventario por categoría", descripcion: "Cuánto inventario hay y cuánto vale, por categoría" },
+  [Permisos.REPORTE_DISPONIBILIDAD]: { nombre: "Reporte: disponibilidad de artículos", descripcion: "Existencia, en tránsito y solicitudes en curso: si conviene pedir" },
+  [Permisos.REPORTE_GASTO_AREA]: { nombre: "Reporte: gasto por área", descripcion: "Gasto, solicitudes y tiempo de aprobación por departamento" },
+  [Permisos.REPORTE_AUDITORIA]: { nombre: "Reporte: hallazgos de auditoría", descripcion: "Autoaprobaciones, compras sin competencia, sobreprecios y proveedores de riesgo" },
 };
 
 /** Roles del modulo y sus permisos. */
 export const ROLES: Record<string, { nombre: string; permisos: readonly string[] }> = {
   SOLICITANTE: {
     nombre: "Solicitante",
-    permisos: [Permisos.SOLICITUD_CREAR, Permisos.SOLICITUD_VER, Permisos.CATALOGO_VER, Permisos.ANALISIS_VER],
+    // Antes de pedir: si ya hay existencia, si viene en camino o si alguien ya lo solicito.
+    permisos: [
+      Permisos.SOLICITUD_CREAR,
+      Permisos.SOLICITUD_VER,
+      Permisos.CATALOGO_VER,
+      Permisos.ANALISIS_VER,
+      Permisos.REPORTE_DISPONIBILIDAD,
+    ],
   },
   JEFE_INMEDIATO: {
     nombre: "Jefe inmediato",
@@ -95,6 +114,9 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.SOLICITUD_APROBAR_JEFE,
       Permisos.CATALOGO_VER,
       Permisos.ANALISIS_VER,
+      // Aprueba: necesita saber si lo pedido ya existe y cuanto gasta su equipo.
+      Permisos.REPORTE_DISPONIBILIDAD,
+      Permisos.REPORTE_GASTO_AREA,
     ],
   },
   // Gerente de area: solo lo que aprueba. No ve RFQ/Cotizacion/OC/Recepcion/
@@ -106,6 +128,9 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.SOLICITUD_APROBAR_GERENTE,
       Permisos.CATALOGO_VER,
       Permisos.ANALISIS_VER,
+      // Gasto de su departamento y si lo que aprueba ya hay en existencia.
+      Permisos.REPORTE_DISPONIBILIDAD,
+      Permisos.REPORTE_GASTO_AREA,
     ],
   },
   COMPRADOR: {
@@ -125,6 +150,8 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.REPORTE_EVALUACION,
       Permisos.REPORTE_ENTREGAS,
       Permisos.REPORTE_DESEMPENO,
+      // Que conviene reponer antes de cotizar.
+      Permisos.REPORTE_DISPONIBILIDAD,
     ],
   },
   GERENTE_FINANCIERO: {
@@ -147,11 +174,19 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.REPORTE_ENTREGAS,
       Permisos.REPORTE_RIESGO,
       Permisos.REPORTE_INVENTARIO,
+      Permisos.REPORTE_GASTO_AREA,
     ],
   },
   BODEGA: {
     nombre: "Bodega",
-    permisos: [Permisos.RECEPCION_GESTIONAR, Permisos.DEVOLUCION_GESTIONAR, Permisos.CATALOGO_VER],
+    // Planifica la recepcion: que viene en camino, que esta atrasado y que hay en existencia.
+    permisos: [
+      Permisos.RECEPCION_GESTIONAR,
+      Permisos.DEVOLUCION_GESTIONAR,
+      Permisos.CATALOGO_VER,
+      Permisos.REPORTE_ENTREGAS,
+      Permisos.REPORTE_DISPONIBILIDAD,
+    ],
   },
   // Auditoria/control interno: mismo alcance que cualquier otro rol de solo
   // consulta — ve el estado de las solicitudes y el analisis agregado, no la
@@ -168,6 +203,9 @@ export const ROLES: Record<string, { nombre: string; permisos: readonly string[]
       Permisos.REPORTE_DESEMPENO,
       Permisos.REPORTE_RIESGO,
       Permisos.REPORTE_INVENTARIO,
+      // Control: hallazgos (autoaprobacion, sin competencia, sobreprecio) y gasto por area.
+      Permisos.REPORTE_AUDITORIA,
+      Permisos.REPORTE_GASTO_AREA,
     ],
   },
   ADMIN_COMPRAS: {

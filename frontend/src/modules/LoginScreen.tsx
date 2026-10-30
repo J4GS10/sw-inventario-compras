@@ -50,8 +50,8 @@ export default function LoginScreen(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // El servidor de producción no publica perfiles de demostración: no se consulta (evita un 404 en cada carga).
-    if ((import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD === true) return;
+    // Acceso rápido por perfil: siempre se consulta. Si el servidor lo desactiva
+    // (APP_LOGIN_DEMO=0) responde 404 y queda solo el formulario de usuario y contraseña.
     let vivo = true;
     http
       .get<UsuarioDemo[]>("/api/auth/usuarios-demo")

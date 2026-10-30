@@ -263,6 +263,7 @@ export interface ReporteGastoProveedor {
 
 export interface OcPendienteItem {
   idOrdenCompra: number;
+  idProveedor: number;
   proveedor: string;
   estado: string;
   fechaEmision: string;
@@ -275,6 +276,8 @@ export interface ReporteOcPendientes {
   totalOrdenes: number;
   totalVencidas: number;
   montoTotal: number;
+  /** Entrega esperada en los proximos 7 dias (aun no vencidas). */
+  proximas7Dias: number;
   ordenes: OcPendienteItem[];
   generadoEn: string;
 }
@@ -297,9 +300,14 @@ export interface ReporteDesempenoProveedores {
 }
 
 export type NivelRiesgo = "bajo" | "medio" | "alto";
+export type RecomendacionRiesgo = "MANTENER" | "VIGILAR" | "RESTRINGIR";
 export interface RiesgoProveedorItem {
   idProveedor: number;
   proveedor: string;
+  /** 'A' activo, 'I' restringido (no se le emiten OC). */
+  estado: string;
+  recomendacion: RecomendacionRiesgo;
+  motivos: string[];
   calificacion: string | null;
   ordenesRecibidas: number;
   diasPromedioEntrega: number | null;
@@ -330,16 +338,33 @@ export interface ReporteInventarioCategoria {
   generadoEn: string;
 }
 
-export type PrioridadEvaluacion = "equilibrado" | "ahorro" | "rapidez" | "calidad";
+export type PrioridadEvaluacion = "equilibrado" | "ahorro" | "rapidez" | "calidad" | "personalizado";
+
+/** Cuanto pesa cada criterio (cualquier escala; el servidor los normaliza a 100 %). */
+export interface PesosEvaluacion {
+  descuento: number;
+  entrega: number;
+  cumplimiento: number;
+  calidad: number;
+  envio: number;
+}
 
 /** Filtros de la evaluacion de proveedores (se envian como query; vacios se omiten). */
 export interface FiltroEvaluacion {
   desde?: string;
   hasta?: string;
   idCategoria?: number | null;
+  idProveedor?: number | null;
+  q?: string;
   minOrdenes?: number;
   prioridad?: PrioridadEvaluacion;
+  /** Solo con prioridad "personalizado". */
+  pesos?: PesosEvaluacion;
   soloEnvioGratis?: boolean;
+  /** Requisitos minimos: quien no los cumple queda fuera. */
+  maxRechazo?: number | null;
+  minATiempo?: number | null;
+  maxDias?: number | null;
 }
 
 export interface EvaluacionProveedorItem {
@@ -381,7 +406,11 @@ export interface ReporteEvaluacionProveedores {
   hasta: string | null;
   idCategoria: number | null;
   prioridad: PrioridadEvaluacion;
+  /** Pesos efectivos (suman 1). */
+  pesos: PesosEvaluacion;
   minOrdenes: number;
+  /** Proveedores que no cumplieron los requisitos minimos. */
+  descartados: number;
   resumen: {
     proveedores: number;
     montoNeto: number;
@@ -404,6 +433,114 @@ export interface ReporteEvaluacionProveedores {
   generadoEn: string;
 }
 
+export type AccionDisponibilidad = "PEDIR" | "EN_CURSO" | "EN_TRANSITO" | "SUFICIENTE" | "EXCEDIDO";
+export interface DisponibilidadArticuloItem {
+  idArticulo: number;
+  codigo: string;
+  articulo: string;
+  idCategoria: number | null;
+  categoria: string;
+  unidad: string;
+  stockMinimo: number;
+  stockMaximo: number;
+  existencia: number;
+  enTransito: number;
+  solicitado: number;
+  solicitudesEnCurso: number;
+  ultimoPrecio: number | null;
+  ultimoProveedor: string | null;
+  ultimaCompra: string | null;
+  cobertura: number;
+  accion: AccionDisponibilidad;
+  sugeridoPedir: number | null;
+  motivo: string;
+}
+export interface ReporteDisponibilidad {
+  articulos: DisponibilidadArticuloItem[];
+  resumen: Record<AccionDisponibilidad, number>;
+  generadoEn: string;
+}
+
+export interface AreaItem {
+  idDepartamento: number | null;
+  departamento: string;
+  solicitudes: number;
+  porAprobar: number;
+  aprobadas: number;
+  rechazadas: number;
+  porcentajeRechazo: number | null;
+  montoEstimado: number;
+  diasPromedioAprobacion: number | null;
+  ordenes: number;
+  montoComprometido: number;
+  porcentajeGasto: number;
+}
+export interface ArticuloCompradoItem {
+  articulo: string;
+  cantidad: number;
+  monto: number;
+  ordenes: number;
+}
+export interface ReporteGastoArea {
+  desde: string | null;
+  hasta: string | null;
+  /** true: el usuario solo ve su equipo o su departamento. */
+  acotado: boolean;
+  montoTotal: number;
+  solicitudesTotal: number;
+  porAprobarTotal: number;
+  areas: AreaItem[];
+  articulosTop: ArticuloCompradoItem[];
+  generadoEn: string;
+}
+
+export type TipoHallazgo =
+  | "AUTOAPROBACION"
+  | "SIN_COMPETENCIA"
+  | "NO_MAS_BARATA"
+  | "SOBREPRECIO_HISTORICO"
+  | "RECHAZO_ALTO"
+  | "PROVEEDOR_RIESGO";
+export type SeveridadHallazgo = "alta" | "media" | "baja";
+export interface HallazgoItem {
+  tipo: TipoHallazgo;
+  severidad: SeveridadHallazgo;
+  codigo: string;
+  documento: "SOL" | "OC" | "REC";
+  idDocumento: number;
+  fecha: string;
+  idProveedor: number | null;
+  proveedor: string | null;
+  monto: number;
+  porcentaje: number | null;
+  referencia: string | null;
+  detalle: string;
+}
+export interface ReporteAuditoria {
+  desde: string | null;
+  hasta: string | null;
+  hallazgos: HallazgoItem[];
+  porSeveridad: Record<SeveridadHallazgo, number>;
+  porTipo: Record<string, number>;
+  montoEnRiesgo: number;
+  generadoEn: string;
+}
+
+/** Ruta de cada reporte bajo /api/com/reportes (JSON) y /pdf. */
+export type RutaReporte =
+  | "gasto-proveedor"
+  | "oc-pendientes"
+  | "desempeno-proveedores"
+  | "riesgo-proveedores"
+  | "inventario-categoria"
+  | "evaluacion-proveedores"
+  | "disponibilidad-articulos"
+  | "gasto-area"
+  | "auditoria-compras";
+
+/** Filtros tal como viajan en la query: los vacios, null y false se omiten. */
+export type FiltrosReporte = Readonly<Record<string, string | number | boolean | null | undefined>>;
+
 export class ReporteAppService {
   private static instance: ReporteAppService | undefined;
   private constructor(
@@ -417,64 +554,83 @@ export class ReporteAppService {
     return ReporteAppService.instance;
   }
 
-  private rango(desde?: string, hasta?: string): Record<string, string> {
+  /** Query de un reporte: un solo lugar decide que viaja, para la pantalla Y el PDF. */
+  public query(f: FiltrosReporte = {}): Record<string, string> {
     const q: Record<string, string> = {};
-    if (desde !== undefined && desde !== "") q["desde"] = desde;
-    if (hasta !== undefined && hasta !== "") q["hasta"] = hasta;
+    for (const [k, v] of Object.entries(f)) {
+      if (v === undefined || v === null || v === false) continue;
+      const texto = v === true ? "1" : String(v).trim();
+      if (texto !== "") q[k] = texto;
+    }
     return q;
   }
 
-  public gastoPorProveedor(desde?: string, hasta?: string): Promise<ReporteGastoProveedor> {
-    return this.http.get<ReporteGastoProveedor>("/api/com/reportes/gasto-proveedor", this.rango(desde, hasta));
-  }
-  public descargarGastoProveedorPdf(desde?: string, hasta?: string): Promise<void> {
-    return this.downloads.descargarReportePdf("gasto-proveedor", this.rango(desde, hasta));
+  public consultar<T>(ruta: RutaReporte, f: FiltrosReporte = {}): Promise<T> {
+    return this.http.get<T>(`/api/com/reportes/${ruta}`, this.query(f));
   }
 
-  public ocPendientesRecibir(): Promise<ReporteOcPendientes> {
-    return this.http.get<ReporteOcPendientes>("/api/com/reportes/oc-pendientes");
-  }
-  public descargarOcPendientesPdf(): Promise<void> {
-    return this.downloads.descargarReportePdf("oc-pendientes", {});
-  }
-
-  public desempenoProveedores(desde?: string, hasta?: string): Promise<ReporteDesempenoProveedores> {
-    return this.http.get<ReporteDesempenoProveedores>(
-      "/api/com/reportes/desempeno-proveedores",
-      this.rango(desde, hasta),
-    );
-  }
-  public descargarDesempenoProveedoresPdf(desde?: string, hasta?: string): Promise<void> {
-    return this.downloads.descargarReportePdf("desempeno-proveedores", this.rango(desde, hasta));
+  /** PDF con los MISMOS filtros que la pantalla; `filtrosTexto` los describe en el encabezado. */
+  public descargarPdf(ruta: RutaReporte, f: FiltrosReporte = {}, filtrosTexto?: string): Promise<void> {
+    const q = this.query(f);
+    if (filtrosTexto !== undefined && filtrosTexto.trim() !== "") q["filtrosTexto"] = filtrosTexto.trim();
+    return this.downloads.descargarReportePdf(ruta, q);
   }
 
-  private filtroEvaluacion(f: FiltroEvaluacion): Record<string, string> {
-    const q = this.rango(f.desde, f.hasta);
-    if (f.idCategoria !== undefined && f.idCategoria !== null) q["idCategoria"] = String(f.idCategoria);
-    if (f.minOrdenes !== undefined && f.minOrdenes > 1) q["minOrdenes"] = String(f.minOrdenes);
-    if (f.prioridad !== undefined) q["prioridad"] = f.prioridad;
-    if (f.soloEnvioGratis === true) q["soloEnvioGratis"] = "1";
-    return q;
+  public gastoPorProveedor(f: FiltrosReporte = {}): Promise<ReporteGastoProveedor> {
+    return this.consultar("gasto-proveedor", f);
+  }
+  public ocPendientesRecibir(f: FiltrosReporte = {}): Promise<ReporteOcPendientes> {
+    return this.consultar("oc-pendientes", f);
+  }
+  public desempenoProveedores(f: FiltrosReporte = {}): Promise<ReporteDesempenoProveedores> {
+    return this.consultar("desempeno-proveedores", f);
+  }
+  public riesgoProveedores(f: FiltrosReporte = {}): Promise<ReporteRiesgoProveedores> {
+    return this.consultar("riesgo-proveedores", f);
+  }
+  public inventarioPorCategoria(f: FiltrosReporte = {}): Promise<ReporteInventarioCategoria> {
+    return this.consultar("inventario-categoria", f);
+  }
+  public disponibilidadArticulos(f: FiltrosReporte = {}): Promise<ReporteDisponibilidad> {
+    return this.consultar("disponibilidad-articulos", f);
+  }
+  public gastoPorArea(f: FiltrosReporte = {}): Promise<ReporteGastoArea> {
+    return this.consultar("gasto-area", f);
+  }
+  public auditoriaCompras(f: FiltrosReporte = {}): Promise<ReporteAuditoria> {
+    return this.consultar("auditoria-compras", f);
+  }
+
+  /** Evaluacion: aplana pesos y requisitos minimos a la query. */
+  public filtroEvaluacion(f: FiltroEvaluacion): FiltrosReporte {
+    return {
+      desde: f.desde,
+      hasta: f.hasta,
+      idCategoria: f.idCategoria,
+      idProveedor: f.idProveedor,
+      q: f.q,
+      minOrdenes: f.minOrdenes !== undefined && f.minOrdenes > 1 ? f.minOrdenes : undefined,
+      prioridad: f.prioridad,
+      soloEnvioGratis: f.soloEnvioGratis,
+      maxRechazo: f.maxRechazo,
+      minATiempo: f.minATiempo,
+      maxDias: f.maxDias,
+      ...(f.prioridad === "personalizado" && f.pesos !== undefined
+        ? {
+            pDescuento: f.pesos.descuento,
+            pEntrega: f.pesos.entrega,
+            pCumplimiento: f.pesos.cumplimiento,
+            pCalidad: f.pesos.calidad,
+            pEnvio: f.pesos.envio,
+          }
+        : {}),
+    };
   }
   public evaluacionProveedores(f: FiltroEvaluacion = {}): Promise<ReporteEvaluacionProveedores> {
-    return this.http.get<ReporteEvaluacionProveedores>(
-      "/api/com/reportes/evaluacion-proveedores",
-      this.filtroEvaluacion(f),
-    );
+    return this.consultar("evaluacion-proveedores", this.filtroEvaluacion(f));
   }
-  public descargarEvaluacionProveedoresPdf(f: FiltroEvaluacion = {}): Promise<void> {
-    return this.downloads.descargarReportePdf("evaluacion-proveedores", this.filtroEvaluacion(f));
-  }
-
-  public riesgoProveedores(): Promise<ReporteRiesgoProveedores> {
-    return this.http.get<ReporteRiesgoProveedores>("/api/com/reportes/riesgo-proveedores");
-  }
-  public descargarRiesgoProveedoresPdf(): Promise<void> {
-    return this.downloads.descargarReportePdf("riesgo-proveedores", {});
-  }
-
-  public inventarioPorCategoria(): Promise<ReporteInventarioCategoria> {
-    return this.http.get<ReporteInventarioCategoria>("/api/com/reportes/inventario-categoria");
+  public descargarEvaluacionProveedoresPdf(f: FiltroEvaluacion = {}, filtrosTexto?: string): Promise<void> {
+    return this.descargarPdf("evaluacion-proveedores", this.filtroEvaluacion(f), filtrosTexto);
   }
 }
 

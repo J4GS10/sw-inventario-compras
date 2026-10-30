@@ -61,6 +61,8 @@ export interface SystemModule {
 
 const CAT_VER = [Permisos.CATALOGO_VER];
 const ANALISIS = [Permisos.ANALISIS_VER];
+/** El Dashboard tambien lo ve quien solo tiene reportes (p. ej. Bodega: lo que viene en camino). */
+const DASHBOARD = [Permisos.ANALISIS_VER, ...PERMISOS_REPORTE];
 
 const COMPRAS_SECTIONS: readonly NavSection[] = [
   {
@@ -68,7 +70,7 @@ const COMPRAS_SECTIONS: readonly NavSection[] = [
     icon: "grid",
     openByDefault: true,
     items: [
-      { id: "com-dashboard", label: "Dashboard", kind: "dashboard", icon: "chart", perm: ANALISIS },
+      { id: "com-dashboard", label: "Dashboard", kind: "dashboard", icon: "chart", perm: DASHBOARD },
     ],
   },
   {

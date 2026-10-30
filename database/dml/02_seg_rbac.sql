@@ -35,7 +35,10 @@ SELECT v.c, v.n, 'COMPRAS', v.d FROM (
   SELECT 'COMPRAS_REPORTE_ENTREGAS',              'Reporte: órdenes pendientes de recibir','Órdenes por recibir y entregas atrasadas'                    FROM dual UNION ALL
   SELECT 'COMPRAS_REPORTE_DESEMPENO',             'Reporte: desempeño de proveedores', 'Tiempos de entrega y rechazo por proveedor'                      FROM dual UNION ALL
   SELECT 'COMPRAS_REPORTE_RIESGO',                'Reporte: riesgo de proveedores',    'Score de confiabilidad por proveedor'                            FROM dual UNION ALL
-  SELECT 'COMPRAS_REPORTE_INVENTARIO',            'Reporte: valor de inventario por categoría','Cuánto inventario hay y cuánto vale, por categoría'            FROM dual
+  SELECT 'COMPRAS_REPORTE_INVENTARIO',            'Reporte: valor de inventario por categoría','Cuánto inventario hay y cuánto vale, por categoría'            FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_DISPONIBILIDAD',        'Reporte: disponibilidad de artículos','Existencia, en tránsito y solicitudes en curso: si conviene pedir' FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_GASTO_AREA',            'Reporte: gasto por área',           'Gasto, solicitudes y tiempo de aprobación por departamento'      FROM dual UNION ALL
+  SELECT 'COMPRAS_REPORTE_AUDITORIA',             'Reporte: hallazgos de auditoría',   'Autoaprobaciones, compras sin competencia, sobreprecios y proveedores de riesgo' FROM dual
 ) v
 WHERE NOT EXISTS (SELECT 1 FROM SEG_PERMISO p WHERE p.CODIGO = v.c);
 
@@ -111,17 +114,23 @@ FROM (
   SELECT 'SOLICITANTE',     'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
   SELECT 'SOLICITANTE',     'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
   SELECT 'SOLICITANTE',     'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
+  -- Antes de pedir: existencia, en transito y solicitudes en curso.
+  SELECT 'SOLICITANTE',     'COMPRAS_REPORTE_DISPONIBILIDAD'      FROM dual UNION ALL
   SELECT 'JEFE_INMEDIATO',  'COMPRAS_SOLICITUD_CREAR'             FROM dual UNION ALL
   SELECT 'JEFE_INMEDIATO',  'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
   SELECT 'JEFE_INMEDIATO',  'COMPRAS_SOLICITUD_APROBAR_JEFE'      FROM dual UNION ALL
   SELECT 'JEFE_INMEDIATO',  'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
   SELECT 'JEFE_INMEDIATO',  'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
+  SELECT 'JEFE_INMEDIATO',  'COMPRAS_REPORTE_DISPONIBILIDAD'      FROM dual UNION ALL
+  SELECT 'JEFE_INMEDIATO',  'COMPRAS_REPORTE_GASTO_AREA'          FROM dual UNION ALL
   -- Gerente de area: solo lo que aprueba. No gestiona RFQ/Cotizacion/OC/
   -- Recepcion/Devolucion -> no las ve.
   SELECT 'GERENTE_AREA',    'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
   SELECT 'GERENTE_AREA',    'COMPRAS_SOLICITUD_APROBAR_GERENTE'   FROM dual UNION ALL
   SELECT 'GERENTE_AREA',    'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
   SELECT 'GERENTE_AREA',    'COMPRAS_ANALISIS_VER'                FROM dual UNION ALL
+  SELECT 'GERENTE_AREA',    'COMPRAS_REPORTE_DISPONIBILIDAD'      FROM dual UNION ALL
+  SELECT 'GERENTE_AREA',    'COMPRAS_REPORTE_GASTO_AREA'          FROM dual UNION ALL
   SELECT 'COMPRADOR',       'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
   SELECT 'COMPRADOR',       'COMPRAS_RFQ_GESTIONAR'               FROM dual UNION ALL
   SELECT 'COMPRADOR',       'COMPRAS_COTIZACION_GESTIONAR'        FROM dual UNION ALL
@@ -135,6 +144,7 @@ FROM (
   SELECT 'COMPRADOR', 'COMPRAS_REPORTE_EVALUACION' FROM dual UNION ALL
   SELECT 'COMPRADOR', 'COMPRAS_REPORTE_ENTREGAS' FROM dual UNION ALL
   SELECT 'COMPRADOR', 'COMPRAS_REPORTE_DESEMPENO' FROM dual UNION ALL
+  SELECT 'COMPRADOR', 'COMPRAS_REPORTE_DISPONIBILIDAD' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_SOLICITUD_VER'            FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_COTIZACION_ADJUDICAR'     FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_OC_GESTIONAR'             FROM dual UNION ALL
@@ -149,9 +159,13 @@ FROM (
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_ENTREGAS' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_RIESGO' FROM dual UNION ALL
   SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_INVENTARIO' FROM dual UNION ALL
+  SELECT 'GERENTE_FINANCIERO', 'COMPRAS_REPORTE_GASTO_AREA' FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_RECEPCION_GESTIONAR'         FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_DEVOLUCION_GESTIONAR'        FROM dual UNION ALL
   SELECT 'BODEGA',          'COMPRAS_CATALOGO_VER'                FROM dual UNION ALL
+  -- Planifica la recepcion: que viene en camino y que hay en existencia.
+  SELECT 'BODEGA',          'COMPRAS_REPORTE_ENTREGAS'            FROM dual UNION ALL
+  SELECT 'BODEGA',          'COMPRAS_REPORTE_DISPONIBILIDAD'      FROM dual UNION ALL
   -- Auditoria: mismo alcance que cualquier otro rol de solo consulta — no
   -- gestiona RFQ/Cotizacion/OC/Recepcion/Devolucion -> no las ve.
   SELECT 'AUDITOR',         'COMPRAS_SOLICITUD_VER'               FROM dual UNION ALL
@@ -160,7 +174,9 @@ FROM (
   SELECT 'AUDITOR', 'COMPRAS_REPORTE_GASTO' FROM dual UNION ALL
   SELECT 'AUDITOR', 'COMPRAS_REPORTE_DESEMPENO' FROM dual UNION ALL
   SELECT 'AUDITOR', 'COMPRAS_REPORTE_RIESGO' FROM dual UNION ALL
-  SELECT 'AUDITOR', 'COMPRAS_REPORTE_INVENTARIO' FROM dual
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_INVENTARIO' FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_AUDITORIA' FROM dual UNION ALL
+  SELECT 'AUDITOR', 'COMPRAS_REPORTE_GASTO_AREA' FROM dual
 ) v
 JOIN SEG_ROL r     ON r.CODIGO = v.rol  AND r.ELIMINADO = 'N'
 JOIN SEG_PERMISO p ON p.CODIGO = v.perm AND p.ELIMINADO = 'N'

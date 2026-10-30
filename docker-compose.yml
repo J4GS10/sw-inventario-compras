@@ -1,83 +1,58 @@
 # ============================================================================
 # Orquestacion local del ERP (skills/stack-tecnologico.md 4).
-# Red privada `inventory-net`, volumen persistente para Oracle, backend y
-# frontend contenerizados.
+# Red privada `inventory-net`; backend, frontend y MinIO contenerizados.
+#
+# Base de datos: Oracle 21c Enterprise instalado en el HOST (no en Docker).
+# Los contenedores llegan a el por `host.docker.internal:1521`, PDB `PROYECTO`
+# (usuario ADMIN_PROYECTO, importado desde database/backup/*.DMP).
+# Se cambia con DB_CONNECT_STRING_DOCKER en `.env`.
 #
 #   docker compose up -d --build
-#   # una sola vez, para crear el esquema + datos semilla contra la BD del compose:
-#   docker compose run --rm --entrypoint sh db-init -c "cd /repo && pnpm db:deploy:full"
-#
-# Nota: Oracle no publica una imagen 21c en Docker Hub sin login a
-# container-registry.oracle.com. Se usa `gvenzl/oracle-free` (Oracle DB 23 Free,
-# superset SQL de 21c) para un arranque turnkey. Para 21c oficial, cambiar la
-# imagen del servicio `oracle` y ajustar DB_CONNECT_STRING.
+#   # migraciones idempotentes + verificacion del esquema (opcional):
+#   docker compose run --rm db-init
 # ============================================================================
 
 name: sw-inventario
 
-services:
-  oracle:
-    image: gvenzl/oracle-free:23-slim
-    environment:
-      ORACLE_PASSWORD: ${DB_PASSWORD:-admin123}
-      APP_USER: ${DB_USER:-admin_proyecto}
-      APP_USER_PASSWORD: ${DB_PASSWORD:-admin123}
-    ports:
-      - "1521:1521"
-    volumes:
-      - oracle-data:/opt/oracle/oradata
-    networks: [inventory-net]
-    healthcheck:
-      test: ["CMD", "healthcheck.sh"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 90s
+x-oracle-host: &oracle-host
+  DB_USER: ${DB_USER:-admin_proyecto}
+  DB_PASSWORD: ${DB_PASSWORD:-admin123}
+  DB_CONNECT_STRING: ${DB_CONNECT_STRING_DOCKER:-host.docker.internal:1521/proyecto}
 
+services:
   # Almacenamiento de objetos S3-compatible para los adjuntos de documentos.
+  # MinIO ya no publica imagenes en Docker Hub/Quay; se usa el build de Bitnami
+  # (mismo servidor MinIO), que ademas crea el bucket al arrancar.
   minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+    image: bitnamilegacy/minio:2025.7.23
     environment:
       MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-minioadmin}
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      MINIO_DEFAULT_BUCKETS: ${S3_BUCKET:-com-adjuntos}
+      MINIO_CONSOLE_PORT_NUMBER: "9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio-data:/data
+      - minio-data:/bitnami/minio/data
     networks: [inventory-net]
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "curl -fs http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
-
-  # Crea el bucket una vez y termina.
-  minio-setup:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 ${AWS_ACCESS_KEY_ID:-minioadmin} ${AWS_SECRET_ACCESS_KEY:-minioadmin} &&
-      mc mb --ignore-existing local/${S3_BUCKET:-com-adjuntos} &&
-      echo 'bucket ${S3_BUCKET:-com-adjuntos} listo'"
-    networks: [inventory-net]
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
+      <<: *oracle-host
       NODE_ENV: production
       HTTP_PORT: "3000"
-      DB_USER: ${DB_USER:-admin_proyecto}
-      DB_PASSWORD: ${DB_PASSWORD:-admin123}
-      # gvenzl expone el PDB como FREEPDB1; el APP_USER vive ahi.
-      DB_CONNECT_STRING: oracle:1521/FREEPDB1
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env para produccion}
+      # Acceso rapido por perfil en el login (0 = ocultarlo).
+      APP_LOGIN_DEMO: ${APP_LOGIN_DEMO:-1}
       # Adjuntos -> MinIO del compose.
       S3_BUCKET: ${S3_BUCKET:-com-adjuntos}
       S3_REGION: ${S3_REGION:-us-east-1}
@@ -85,11 +60,11 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
       ADJUNTO_MAX_BYTES: ${ADJUNTO_MAX_BYTES:-15728640}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      oracle:
+      minio:
         condition: service_healthy
-      minio-setup:
-        condition: service_completed_successfully
     networks: [inventory-net]
     ports:
       - "3000:3000"
@@ -106,26 +81,22 @@ services:
       - "8443:80"
     restart: unless-stopped
 
-  # Utilitario opcional para aplicar DDL + DML contra la BD del compose.
-  # No arranca solo: se invoca con `docker compose run --rm db-init ...`.
+  # Utilitario opcional: migraciones idempotentes + verificacion del esquema
+  # contra el Oracle del host. No arranca solo: `docker compose run --rm db-init`.
   db-init:
     image: node:20-alpine
     profiles: ["tools"]
     working_dir: /repo
-    entrypoint: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile && pnpm db:deploy:full"]
+    entrypoint: ["sh", "-c", "corepack enable && pnpm install --frozen-lockfile --ignore-scripts --filter @sw-inventario/backend... && pnpm db:deploy"]
     environment:
-      DB_USER: ${DB_USER:-admin_proyecto}
-      DB_PASSWORD: ${DB_PASSWORD:-admin123}
-      DB_CONNECT_STRING: oracle:1521/FREEPDB1
+      <<: *oracle-host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/repo
-    depends_on:
-      oracle:
-        condition: service_healthy
     networks: [inventory-net]
 
 volumes:
-  oracle-data:
   minio-data:
 
 networks:

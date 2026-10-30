@@ -2,8 +2,11 @@
  * Evaluacion de proveedores: a quien conviene comprarle. Cruza descuento,
  * velocidad y cumplimiento de entrega, calidad (rechazo) y envio (gratuito /
  * costo) sobre las OC vigentes, con filtros para decidir:
- * periodo, categoria de articulo, minimo de OC, solo envio gratuito y el
- * ENFOQUE (equilibrado / ahorro / rapidez / calidad) que pondera el score.
+ *  - periodo, categoria de articulo, proveedor, texto, minimo de OC, solo envio gratuito;
+ *  - REQUISITOS MINIMOS (rechazo maximo, % a tiempo, dias maximos): quien no cumple sale;
+ *  - el ENFOQUE que pondera el score, o "Personalizado": el usuario decide cuanto pesa
+ *    cada criterio (0-10) y el ranking se arma con esos pesos.
+ * La pantalla y el PDF usan los filtros APLICADOS (no los que se estan editando).
  * skills/patron-diseno.md §7/§8.
  */
 
@@ -16,40 +19,95 @@ import {
   type PrioridadEvaluacion,
   type ReporteEvaluacionProveedores,
 } from "../../core/CompraServices.js";
-import { http } from "../../core/HttpClient.js";
 import { messageOf } from "../../core/errors.js";
 import { formatMoney, formatPercent } from "../../core/format.js";
 import { Button, Card, Chip, KpiCard } from "../../ui/primitives.js";
 import { DataTable, type Column } from "../../ui/DataTable.js";
 import { FilterBar } from "../../ui/FilterBar.js";
-import { Field, FormGrid, type FieldValue } from "../../ui/Field.js";
+import type { FieldDef } from "../../ui/Field.js";
 import { useToast } from "../../ui/Toast.js";
+import {
+  CamposFiltro,
+  campoBuscar,
+  camposRango,
+  contarActivos,
+  describirFiltros,
+  selectTodos,
+  useOpcionesFiltro,
+  type ValoresFiltro,
+} from "./filtrosReporte.js";
 
 export const ENFOQUES: readonly { value: PrioridadEvaluacion; label: string; hint: string }[] = [
   { value: "equilibrado", label: "Equilibrado", hint: "Descuento, entrega, cumplimiento, calidad y envío con peso parejo." },
   { value: "ahorro", label: "Priorizar ahorro", hint: "Pesa sobre todo el descuento y el costo de envío." },
   { value: "rapidez", label: "Priorizar rapidez", hint: "Pesa sobre todo los días de entrega y cumplir la fecha prometida." },
   { value: "calidad", label: "Priorizar calidad", hint: "Pesa sobre todo el bajo rechazo y el cumplimiento." },
+  { value: "personalizado", label: "Personalizado (yo decido)", hint: "Asigna de 0 a 10 cuánto te importa cada criterio; el ranking se arma con tus pesos." },
 ];
 
-interface FiltrosUi {
-  desde: string;
-  hasta: string;
-  idCategoria: string;
-  minOrdenes: string;
-  prioridad: PrioridadEvaluacion;
-  soloEnvioGratis: boolean;
+/** Criterios que el usuario puede ponderar en el enfoque personalizado. */
+const CRITERIOS: readonly { name: "pDescuento" | "pEntrega" | "pCumplimiento" | "pCalidad" | "pEnvio"; label: string; help: string }[] = [
+  { name: "pDescuento", label: "Peso: descuento / precio", help: "0 = no importa · 10 = lo más importante" },
+  { name: "pEntrega", label: "Peso: rapidez de entrega", help: "Menos días entre la orden y la recepción" },
+  { name: "pCumplimiento", label: "Peso: cumplir la fecha", help: "% de órdenes recibidas a tiempo" },
+  { name: "pCalidad", label: "Peso: calidad (bajo rechazo)", help: "% de unidades rechazadas en la recepción" },
+  { name: "pEnvio", label: "Peso: envío gratis / flete bajo", help: "Costo de envío registrado en las órdenes" },
+];
+
+function inicial(prioridad: PrioridadEvaluacion): ValoresFiltro {
+  return {
+    prioridad,
+    pDescuento: "5",
+    pEntrega: "5",
+    pCumplimiento: "5",
+    pCalidad: "5",
+    pEnvio: "5",
+    desde: "",
+    hasta: "",
+    idCategoria: "",
+    idProveedor: "",
+    q: "",
+    minOrdenes: "2",
+    maxRechazo: "",
+    minATiempo: "",
+    maxDias: "",
+    soloEnvioGratis: false,
+  };
 }
 
-function aFiltro(f: FiltrosUi): FiltroEvaluacion {
-  const min = Number.parseInt(f.minOrdenes, 10);
+function numero(v: unknown): number | null {
+  const s = String(v ?? "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function aFiltro(f: ValoresFiltro): FiltroEvaluacion {
+  const min = Number.parseInt(String(f["minOrdenes"] ?? ""), 10);
+  const prioridad = String(f["prioridad"]) as PrioridadEvaluacion;
   return {
-    desde: f.desde,
-    hasta: f.hasta,
-    idCategoria: f.idCategoria === "" ? null : Number(f.idCategoria),
+    desde: String(f["desde"] ?? ""),
+    hasta: String(f["hasta"] ?? ""),
+    idCategoria: f["idCategoria"] === "" ? null : Number(f["idCategoria"]),
+    idProveedor: f["idProveedor"] === "" ? null : Number(f["idProveedor"]),
+    q: String(f["q"] ?? ""),
     minOrdenes: Number.isFinite(min) && min > 0 ? min : 1,
-    prioridad: f.prioridad,
-    soloEnvioGratis: f.soloEnvioGratis,
+    prioridad,
+    soloEnvioGratis: f["soloEnvioGratis"] === true,
+    maxRechazo: numero(f["maxRechazo"]),
+    minATiempo: numero(f["minATiempo"]),
+    maxDias: numero(f["maxDias"]),
+    ...(prioridad === "personalizado"
+      ? {
+          pesos: {
+            descuento: numero(f["pDescuento"]) ?? 0,
+            entrega: numero(f["pEntrega"]) ?? 0,
+            cumplimiento: numero(f["pCumplimiento"]) ?? 0,
+            calidad: numero(f["pCalidad"]) ?? 0,
+            envio: numero(f["pEnvio"]) ?? 0,
+          },
+        }
+      : {}),
   };
 }
 
@@ -187,34 +245,42 @@ export default function EvaluacionProveedoresView(props: {
   prioridadInicial?: PrioridadEvaluacion;
 }): React.ReactElement {
   const toast = useToast();
-  const [filtros, setFiltros] = useState<FiltrosUi>({
-    desde: "",
-    hasta: "",
-    idCategoria: "",
-    minOrdenes: "2",
-    prioridad: props.prioridadInicial ?? "equilibrado",
-    soloEnvioGratis: false,
-  });
+  const opciones = useOpcionesFiltro();
+  const base = inicial(props.prioridadInicial ?? "equilibrado");
+  const [filtros, setFiltros] = useState<ValoresFiltro>(base);
+  // Lo que la tabla y el PDF muestran: los filtros del ultimo "Aplicar".
+  const [aplicados, setAplicados] = useState<ValoresFiltro>(base);
   const [data, setData] = useState<ReporteEvaluacionProveedores | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyPdf, setBusyPdf] = useState(false);
-  const [categorias, setCategorias] = useState<readonly { value: string; label: string }[]>([]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await http.list<Record<string, unknown>>("/api/com/ref/categorias-articulo", { pageSize: 200 });
-        setCategorias(r.data.map((c) => ({ value: String(c["idCategoria"]), label: String(c["nombre"] ?? c["idCategoria"]) })));
-      } catch {
-        setCategorias([]);
-      }
-    })();
-  }, []);
+  const personalizado = filtros["prioridad"] === "personalizado";
+  const enfoque = ENFOQUES.find((e) => e.value === filtros["prioridad"]);
+  const campos: FieldDef[] = [
+    {
+      name: "prioridad",
+      label: "Enfoque: ¿qué es lo más importante?",
+      kind: "select",
+      options: ENFOQUES.map((e) => ({ value: e.value, label: e.label })),
+      ...(enfoque !== undefined ? { help: enfoque.hint } : {}),
+    },
+    ...(personalizado ? CRITERIOS.map((c): FieldDef => ({ name: c.name, label: c.label, kind: "integer", help: c.help })) : []),
+    selectTodos("idCategoria", "Categoría de artículo", opciones.categorias),
+    selectTodos("idProveedor", "Proveedor", opciones.proveedores),
+    ...camposRango(),
+    campoBuscar("Buscar proveedor o NIT"),
+    { name: "minOrdenes", label: "Mínimo de órdenes", kind: "integer", help: "Un proveedor con pocas OC no compite por 'mejor': evita ganadores de una sola compra." },
+    { name: "maxRechazo", label: "Requisito: rechazo máximo (%)", kind: "percent", help: "Descarta a quien rechaza más que esto." },
+    { name: "minATiempo", label: "Requisito: mínimo a tiempo (%)", kind: "percent", help: "Descarta a quien cumple la fecha menos que esto." },
+    { name: "maxDias", label: "Requisito: días máximos de entrega", kind: "integer", help: "Descarta a quien tarda más que esto." },
+    { name: "soloEnvioGratis", label: "Solo con envío gratuito", kind: "switch", help: "Deja los proveedores que han despachado al menos una OC sin costo de envío." },
+  ];
 
-  const cargar = useCallback(async (f: FiltrosUi): Promise<void> => {
+  const cargar = useCallback(async (f: ValoresFiltro): Promise<void> => {
     setLoading(true);
     try {
       setData(await reporteService.evaluacionProveedores(aFiltro(f)));
+      setAplicados(f);
     } catch (e: unknown) {
       toast.error(messageOf(e));
     } finally {
@@ -224,7 +290,7 @@ export default function EvaluacionProveedoresView(props: {
   }, []);
 
   useEffect(() => {
-    void cargar(filtros);
+    void cargar(base);
     // Carga inicial; los cambios posteriores se aplican con el boton "Aplicar".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -232,7 +298,7 @@ export default function EvaluacionProveedoresView(props: {
   async function descargarPdf(): Promise<void> {
     setBusyPdf(true);
     try {
-      await reporteService.descargarEvaluacionProveedoresPdf(aFiltro(filtros));
+      await reporteService.descargarEvaluacionProveedoresPdf(aFiltro(aplicados), describirFiltros(campos, aplicados));
     } catch (e: unknown) {
       toast.error(messageOf(e));
     } finally {
@@ -240,59 +306,26 @@ export default function EvaluacionProveedoresView(props: {
     }
   }
 
-  const activos =
-    (filtros.desde !== "" ? 1 : 0) +
-    (filtros.hasta !== "" ? 1 : 0) +
-    (filtros.idCategoria !== "" ? 1 : 0) +
-    (filtros.soloEnvioGratis ? 1 : 0) +
-    (filtros.minOrdenes !== "2" ? 1 : 0);
-  const enfoque = ENFOQUES.find((e) => e.value === filtros.prioridad);
+  const sinAplicar = JSON.stringify(filtros) !== JSON.stringify(aplicados);
+  const w = data?.pesos;
 
   return (
     <div className="grid grid-cols-1 gap-4">
       <FilterBar
-        activeCount={activos}
+        activeCount={contarActivos(aplicados, base)}
         defaultOpen
         onApply={() => void cargar(filtros)}
         onClear={() => {
-          const limpio: FiltrosUi = { ...filtros, desde: "", hasta: "", idCategoria: "", minOrdenes: "2", soloEnvioGratis: false };
-          setFiltros(limpio);
-          void cargar(limpio);
+          setFiltros(base);
+          void cargar(base);
         }}
       >
-        <FormGrid>
-          <Field
-            def={{ name: "prioridad", label: "Enfoque de la decisión", kind: "select", options: ENFOQUES.map((e) => ({ value: e.value, label: e.label })), help: enfoque?.hint }}
-            value={filtros.prioridad}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, prioridad: String(v) as PrioridadEvaluacion })}
-          />
-          <Field
-            def={{ name: "idCategoria", label: "Categoría de artículo", kind: "select", options: [{ value: "", label: "Todas" }, ...categorias] }}
-            value={filtros.idCategoria}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, idCategoria: String(v ?? "") })}
-          />
-          <Field
-            def={{ name: "desde", label: "Desde", kind: "date" }}
-            value={filtros.desde}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, desde: String(v ?? "") })}
-          />
-          <Field
-            def={{ name: "hasta", label: "Hasta", kind: "date", minDateField: "desde" }}
-            values={{ desde: filtros.desde, hasta: filtros.hasta }}
-            value={filtros.hasta}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, hasta: String(v ?? "") })}
-          />
-          <Field
-            def={{ name: "minOrdenes", label: "Mínimo de órdenes", kind: "integer", help: "Un proveedor con pocas OC no compite por 'mejor': evita ganadores de una sola compra." }}
-            value={filtros.minOrdenes}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, minOrdenes: String(v ?? "") })}
-          />
-          <Field
-            def={{ name: "soloEnvioGratis", label: "Solo con envío gratuito", kind: "switch", help: "Deja los proveedores que han despachado al menos una OC sin costo de envío." }}
-            value={filtros.soloEnvioGratis}
-            onChange={(v: FieldValue) => setFiltros({ ...filtros, soloEnvioGratis: v === true })}
-          />
-        </FormGrid>
+        <CamposFiltro campos={campos} valores={filtros} onChange={setFiltros} />
+        {sinAplicar && (
+          <p className="mt-2 text-[0.75rem]" style={{ color: "var(--color-warning)" }}>
+            Hay cambios sin aplicar: la tabla y el PDF muestran los últimos filtros aplicados.
+          </p>
+        )}
       </FilterBar>
 
       {data === null ? (
@@ -328,6 +361,14 @@ export default function EvaluacionProveedoresView(props: {
             />
           </div>
 
+          {w !== undefined && (
+            <p className="text-[0.78rem]" style={{ color: "var(--color-ink-soft)" }}>
+              El score pondera: descuento {formatPercent(w.descuento * 100)} · rapidez {formatPercent(w.entrega * 100)} · cumplimiento{" "}
+              {formatPercent(w.cumplimiento * 100)} · calidad {formatPercent(w.calidad * 100)} · envío {formatPercent(w.envio * 100)}
+              {data.descartados > 0 && <b> · {data.descartados} proveedor(es) descartado(s) por no cumplir tus requisitos</b>}
+            </p>
+          )}
+
           <div>
             <h3 className="mb-2" style={{ color: "var(--color-heading)" }}>
               Quién destaca en cada criterio
@@ -336,8 +377,8 @@ export default function EvaluacionProveedoresView(props: {
           </div>
 
           <div className="flex justify-end">
-            <Button variant="secondary" icon="package" disabled={busyPdf} onClick={() => void descargarPdf()}>
-              {busyPdf ? "..." : "Descargar PDF"}
+            <Button variant="secondary" icon="download" disabled={busyPdf} onClick={() => void descargarPdf()}>
+              {busyPdf ? "..." : `Descargar PDF (${data.proveedores.length} proveedores)`}
             </Button>
           </div>
 
@@ -345,9 +386,8 @@ export default function EvaluacionProveedoresView(props: {
             columns={columnas}
             rows={data.proveedores}
             rowKey={(r) => String(r.idProveedor)}
-            localSearch={{ placeholder: "Buscar proveedor, NIT…" }}
             loading={loading}
-            emptyTitle="Sin órdenes de compra vigentes con estos filtros"
+            emptyTitle="Ningún proveedor cumple estos filtros"
           />
           <p className="text-[0.74rem]" style={{ color: "var(--color-ink-faint)" }}>
             Descuento ponderado por monto · Días de entrega reales (emisión → última recepción); * = plazo prometido, aún sin órdenes completas ·

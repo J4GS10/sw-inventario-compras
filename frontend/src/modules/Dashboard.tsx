@@ -165,6 +165,8 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
   const [tend, setTend] = useState<Record<string, { actual: number; previo: number }>>({});
   const [ocEstados, setOcEstados] = useState<readonly { estado: string; n: number }[]>([]);
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
+  /** Ventana del panorama financiero (el servidor acepta 1-24 meses). */
+  const [meses, setMeses] = useState(12);
   const [misSolicitudes, setMisSolicitudes] = useState<{
     pendienteJefe: number; pendienteGerente: number; enCotizacion: number; ordenGenerada: number; rechazada: number;
   } | null>(null);
@@ -225,12 +227,12 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
     if (!veFinanciero) return;
     void (async () => {
       try {
-        setResumen(await dashboardService.resumen());
+        setResumen(await dashboardService.resumen(meses));
       } catch {
         setResumen(null);
       }
     })();
-  }, [veFinanciero]);
+  }, [veFinanciero, meses]);
 
   useEffect(() => {
     if (!esLiquidador) return;
@@ -410,6 +412,23 @@ export default function Dashboard(props: { onNavigateById: (leafId: string) => v
       {/* --- Finanzas: panorama de gasto + ahorro + liquidacion (financiero/auditor) --- */}
       {veFinanciero && resumen !== null && (
         <>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="dash-periodo" className="text-[0.8rem] font-semibold" style={{ color: "var(--color-ink-soft)" }}>
+              Periodo del panorama financiero
+            </label>
+            <select
+              id="dash-periodo"
+              className="field-control"
+              style={{ width: "auto" }}
+              value={meses}
+              onChange={(e) => setMeses(Number(e.target.value))}
+            >
+              <option value={3}>Últimos 3 meses</option>
+              <option value={6}>Últimos 6 meses</option>
+              <option value={12}>Últimos 12 meses</option>
+              <option value={24}>Últimos 24 meses</option>
+            </select>
+          </div>
           <div className="grid gap-3 lg:grid-cols-2">
             <Card>
               <h3 className="mb-1" style={{ color: "var(--color-heading)" }}>

@@ -15,13 +15,13 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@sw-inventario/backend..."
+    pnpm install --frozen-lockfile --ignore-scripts --filter "@sw-inventario/backend..."
 
 # ---- Compilacion + extraccion de deps de produccion ---------------------
 FROM deps AS build
 COPY backend ./backend
 RUN pnpm --filter @sw-inventario/backend build \
- && pnpm --filter @sw-inventario/backend --prod deploy /prod
+ && pnpm --filter @sw-inventario/backend --prod --ignore-scripts deploy /prod
 
 # ---- Imagen final de produccion ---------------------------------------
 FROM node:20-alpine AS runtime

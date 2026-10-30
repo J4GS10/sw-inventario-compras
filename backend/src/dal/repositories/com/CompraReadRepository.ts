@@ -284,6 +284,7 @@ export interface InventarioCategoriaRow {
 /** Orden de compra aun no recibida por completo, con dias transcurridos. */
 export interface OcPendienteRow {
   readonly idOrdenCompra: number;
+  readonly idProveedor: number;
   readonly proveedor: string;
   readonly estado: string;
   readonly fechaEmision: string;
@@ -308,6 +309,8 @@ export interface DesempenoProveedorRow {
 export interface RiesgoProveedorInsumo {
   readonly idProveedor: number;
   readonly proveedor: string;
+  /** 'A' activo, 'I' restringido (no se le pueden emitir OC). */
+  readonly estado: string;
   readonly calificacion: string | null;
   readonly ordenesRecibidas: number;
   readonly diasPromedioEntrega: number | null;
@@ -345,6 +348,93 @@ export interface EvaluacionProveedoresFiltro {
   readonly desde?: string;
   readonly hasta?: string;
   readonly idCategoria?: number;
+}
+
+/** Acota las lineas de OC que entran a un reporte: por categoria de articulo y/o proveedor. */
+export interface FiltroLineasCompra {
+  readonly idCategoria?: number;
+  readonly idProveedor?: number;
+}
+
+/** Existencia, transito y demanda en curso de un articulo (insumo de "disponibilidad"). */
+export interface DisponibilidadArticuloRow {
+  readonly idArticulo: number;
+  readonly codigo: string;
+  readonly articulo: string;
+  readonly idCategoria: number | null;
+  readonly categoria: string;
+  readonly unidad: string;
+  readonly stockMinimo: number;
+  readonly stockMaximo: number;
+  readonly existencia: number;
+  readonly enTransito: number;
+  readonly solicitado: number;
+  readonly solicitudesEnCurso: number;
+  readonly ultimoPrecio: number | null;
+  readonly ultimoProveedor: string | null;
+  readonly ultimaCompra: string | null;
+}
+
+/** Solicitudes de un departamento en el periodo (por fecha de creacion). */
+export interface SolicitudesAreaRow {
+  readonly idDepartamento: number | null;
+  readonly departamento: string;
+  readonly solicitudes: number;
+  readonly porAprobar: number;
+  readonly aprobadas: number;
+  readonly rechazadas: number;
+  readonly montoEstimado: number;
+  readonly diasPromedioAprobacion: number | null;
+}
+
+/** Gasto comprometido en OC atribuido al departamento del solicitante. */
+export interface GastoAreaRow {
+  readonly idDepartamento: number | null;
+  readonly ordenes: number;
+  readonly monto: number;
+}
+
+/** Lo que mas compra un area (o toda la empresa). */
+export interface ArticuloCompradoRow {
+  readonly articulo: string;
+  readonly cantidad: number;
+  readonly monto: number;
+  readonly ordenes: number;
+}
+
+export interface FiltroArea {
+  readonly desde?: string;
+  readonly hasta?: string;
+  readonly idDepartamento?: number;
+  /** null = sin restriccion de alcance; lista = solo solicitudes de esos empleados. */
+  readonly empleados: readonly number[] | null;
+}
+
+export type TipoHallazgo =
+  | "AUTOAPROBACION"
+  | "SIN_COMPETENCIA"
+  | "NO_MAS_BARATA"
+  | "SOBREPRECIO_HISTORICO"
+  | "RECHAZO_ALTO";
+
+/**
+ * Evidencia cruda de un hallazgo de control interno. La severidad y el texto
+ * explicativo los arma `ReporteService` (es negocio, no SQL).
+ */
+export interface HallazgoAuditoriaRow {
+  readonly tipo: TipoHallazgo;
+  /** Prefijo del documento: SOL, OC o REC. */
+  readonly documento: "SOL" | "OC" | "REC";
+  readonly idDocumento: number;
+  readonly fecha: string;
+  readonly idProveedor: number | null;
+  readonly proveedor: string | null;
+  /** GTQ en juego: monto de la OC / sobrecosto / valor rechazado / monto estimado. */
+  readonly monto: number;
+  /** Magnitud: % sobre la oferta mas baja o el historico, o % rechazado. */
+  readonly porcentaje: number | null;
+  /** Dato de apoyo: empleado que se autoaprobo, articulo, lineas afectadas. */
+  readonly referencia: string | null;
 }
 
 /** Monto de CxP pendiente agrupado por cuando vence (proyeccion de pagos). */
@@ -1992,6 +2082,7 @@ export class CompraReadRepository {
   public async gastoPorProveedor(
     desde: string | undefined,
     hasta: string | undefined,
+    f: FiltroLineasCompra = {},
     conn?: Connection,
   ): Promise<readonly GastoProveedorRow[]> {
     const sql = `
@@ -2006,10 +2097,13 @@ export class CompraReadRepository {
       JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
       JOIN COM_ORDEN_COMPRA_DETALLE od
         ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+      LEFT JOIN INV_ARTICULO a ON a.ID_ARTICULO = od.ID_ARTICULO
       WHERE oc.ELIMINADO = 'N'
         AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
         AND (:desde IS NULL OR oc.FECHA_EMISION >= TO_DATE(:desde, 'YYYY-MM-DD'))
         AND (:hasta IS NULL OR oc.FECHA_EMISION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)
+        AND (:categoria IS NULL OR a.ID_CATEGORIA = :categoria)
+        AND (:proveedor IS NULL OR oc.ID_PROVEEDOR = :proveedor)
       GROUP BY p.ID_PROVEEDOR, p.RAZON_SOCIAL, p.NIT
       ORDER BY MONTO DESC`;
     return oraclePool().withConnection(async (c) => {
@@ -2017,6 +2111,8 @@ export class CompraReadRepository {
         const res = await c.execute<Row>(sql, {
           desde: desde ?? null,
           hasta: hasta ?? null,
+          categoria: f.idCategoria ?? null,
+          proveedor: f.idProveedor ?? null,
         });
         return (res.rows ?? []).map((r) => ({
           idProveedor: num(r["ID_PROVEEDOR"]),
@@ -2081,6 +2177,7 @@ export class CompraReadRepository {
     const sql = `
       SELECT
         oc.ID_ORDEN_COMPRA                                                        AS ID_ORDEN_COMPRA,
+        oc.ID_PROVEEDOR                                                           AS ID_PROVEEDOR,
         p.RAZON_SOCIAL                                                            AS PROVEEDOR,
         oc.ESTADO                                                                 AS ESTADO,
         oc.FECHA_EMISION                                                          AS FECHA_EMISION,
@@ -2095,7 +2192,7 @@ export class CompraReadRepository {
         ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
       WHERE oc.ELIMINADO = 'N'
         AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA', 'RECIBIDA_COMPLETA')
-      GROUP BY oc.ID_ORDEN_COMPRA, p.RAZON_SOCIAL, oc.ESTADO, oc.FECHA_EMISION,
+      GROUP BY oc.ID_ORDEN_COMPRA, oc.ID_PROVEEDOR, p.RAZON_SOCIAL, oc.ESTADO, oc.FECHA_EMISION,
                oc.FECHA_ENTREGA_ESPERADA
       ORDER BY DIAS_VENCIDA DESC, DIAS_TRANSCURRIDOS DESC`;
     return oraclePool().withConnection(async (c) => {
@@ -2103,6 +2200,7 @@ export class CompraReadRepository {
         const res = await c.execute<Row>(sql);
         return (res.rows ?? []).map((r) => ({
           idOrdenCompra: num(r["ID_ORDEN_COMPRA"]),
+          idProveedor: num(r["ID_PROVEEDOR"]),
           proveedor: str(r["PROVEEDOR"]),
           estado: str(r["ESTADO"]),
           fechaEmision: iso(r["FECHA_EMISION"]),
@@ -2126,6 +2224,7 @@ export class CompraReadRepository {
   public async desempenoProveedores(
     desde: string | undefined,
     hasta: string | undefined,
+    f: FiltroLineasCompra = {},
     conn?: Connection,
   ): Promise<readonly DesempenoProveedorRow[]> {
     const sql = `
@@ -2140,7 +2239,9 @@ export class CompraReadRepository {
         JOIN COM_RECEPCION r ON r.ID_RECEPCION = rd.ID_RECEPCION AND r.ELIMINADO = 'N'
         JOIN COM_ORDEN_COMPRA_DETALLE od
           ON od.ID_OC_DETALLE = rd.ID_OC_DETALLE AND od.ELIMINADO = 'N'
+        LEFT JOIN INV_ARTICULO a ON a.ID_ARTICULO = od.ID_ARTICULO
         WHERE rd.ELIMINADO = 'N'
+          AND (:categoria IS NULL OR a.ID_CATEGORIA = :categoria)
       ),
       por_oc AS (
         SELECT
@@ -2153,6 +2254,7 @@ export class CompraReadRepository {
         FROM COM_ORDEN_COMPRA oc
         JOIN entrega e ON e.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA
         WHERE oc.ELIMINADO = 'N'
+          AND (:proveedor IS NULL OR oc.ID_PROVEEDOR = :proveedor)
           AND (:desde IS NULL OR oc.FECHA_EMISION >= TO_DATE(:desde, 'YYYY-MM-DD'))
           AND (:hasta IS NULL OR oc.FECHA_EMISION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)
         GROUP BY oc.ID_ORDEN_COMPRA, oc.ID_PROVEEDOR, oc.FECHA_EMISION
@@ -2173,6 +2275,8 @@ export class CompraReadRepository {
         const res = await c.execute<Row>(sql, {
           desde: desde ?? null,
           hasta: hasta ?? null,
+          categoria: f.idCategoria ?? null,
+          proveedor: f.idProveedor ?? null,
         });
         return (res.rows ?? []).map((r) => {
           const recibida = num(r["CANTIDAD_RECIBIDA"]);
@@ -2355,6 +2459,7 @@ export class CompraReadRepository {
         p.ID_PROVEEDOR                                                  AS ID_PROVEEDOR,
         p.RAZON_SOCIAL                                                  AS PROVEEDOR,
         p.CALIFICACION                                                  AS CALIFICACION,
+        NVL(p.ESTADO, 'A')                                              AS ESTADO,
         COUNT(DISTINCT po.ID_ORDEN_COMPRA)                              AS ORDENES,
         AVG(TRUNC(po.ULTIMA_RECEPCION) - TRUNC(po.FECHA_EMISION))       AS DIAS_PROMEDIO,
         NVL(SUM(po.CANTIDAD_RECIBIDA), 0)                               AS CANTIDAD_RECIBIDA,
@@ -2367,7 +2472,7 @@ export class CompraReadRepository {
       FROM COM_PROVEEDOR p
       LEFT JOIN por_oc po ON po.ID_PROVEEDOR = p.ID_PROVEEDOR
       WHERE p.ELIMINADO = 'N'
-      GROUP BY p.ID_PROVEEDOR, p.RAZON_SOCIAL, p.CALIFICACION
+      GROUP BY p.ID_PROVEEDOR, p.RAZON_SOCIAL, p.CALIFICACION, p.ESTADO
       HAVING COUNT(DISTINCT po.ID_ORDEN_COMPRA) > 0
       ORDER BY p.RAZON_SOCIAL`;
     return oraclePool().withConnection(async (c) => {
@@ -2380,6 +2485,7 @@ export class CompraReadRepository {
           return {
             idProveedor: num(r["ID_PROVEEDOR"]),
             proveedor: str(r["PROVEEDOR"]),
+            estado: str(r["ESTADO"]),
             calificacion: r["CALIFICACION"] === null ? null : str(r["CALIFICACION"]),
             ordenesRecibidas: num(r["ORDENES"]),
             diasPromedioEntrega:
@@ -2393,6 +2499,437 @@ export class CompraReadRepository {
       } catch (error) {
         throw mapOracleError(error, "COM_PROVEEDOR");
       }
+    }, conn);
+  }
+
+  /**
+   * Disponibilidad por articulo activo: existencia en bodegas, lo que viene en
+   * camino (OC vigentes no recibidas por completo, menos lo ya recibido de cada
+   * linea), lo pedido en solicitudes aun no convertidas en OC y la ultima
+   * compra (precio neto GTQ y proveedor). La recomendacion se calcula en
+   * `ReporteService`.
+   */
+  public async disponibilidadArticulos(
+    f: { readonly idCategoria?: number },
+    conn?: Connection,
+  ): Promise<readonly DisponibilidadArticuloRow[]> {
+    const sql = `
+      WITH ex AS (
+        SELECT ID_ARTICULO, SUM(CANTIDAD_ACTUAL) AS EXISTENCIA
+        FROM INV_EXISTENCIA_BODEGA
+        WHERE ELIMINADO = 'N'
+        GROUP BY ID_ARTICULO
+      ),
+      rc AS (
+        SELECT rd.ID_OC_DETALLE, SUM(rd.CANTIDAD_RECIBIDA) AS RECIBIDA
+        FROM COM_RECEPCION_DETALLE rd
+        JOIN COM_RECEPCION r ON r.ID_RECEPCION = rd.ID_RECEPCION AND r.ELIMINADO = 'N'
+        WHERE rd.ELIMINADO = 'N'
+        GROUP BY rd.ID_OC_DETALLE
+      ),
+      tr AS (
+        SELECT od.ID_ARTICULO, SUM(GREATEST(0, od.CANTIDAD - NVL(rc.RECIBIDA, 0))) AS TRANSITO
+        FROM COM_ORDEN_COMPRA oc
+        JOIN COM_ORDEN_COMPRA_DETALLE od
+          ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+        LEFT JOIN rc ON rc.ID_OC_DETALLE = od.ID_OC_DETALLE
+        WHERE oc.ELIMINADO = 'N'
+          AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA', 'RECIBIDA_COMPLETA')
+          AND od.ID_ARTICULO IS NOT NULL
+        GROUP BY od.ID_ARTICULO
+      ),
+      sol AS (
+        SELECT sd.ID_ARTICULO,
+               SUM(NVL(sd.CANTIDAD_AUTORIZADA, sd.CANTIDAD_SOLICITADA)) AS SOLICITADO,
+               COUNT(DISTINCT s.ID_SOLICITUD)                           AS SOLICITUDES
+        FROM COM_SOLICITUD_COMPRA s
+        JOIN COM_SOLICITUD_DETALLE sd ON sd.ID_SOLICITUD = s.ID_SOLICITUD AND sd.ELIMINADO = 'N'
+        WHERE s.ELIMINADO = 'N'
+          AND s.ESTADO IN ('PENDIENTE_JEFE', 'PENDIENTE_GERENTE', 'EN_COTIZACION')
+          AND sd.ID_ARTICULO IS NOT NULL
+        GROUP BY sd.ID_ARTICULO
+      ),
+      ult AS (
+        SELECT ID_ARTICULO, PRECIO, PROVEEDOR, FECHA FROM (
+          SELECT od.ID_ARTICULO                                                  AS ID_ARTICULO,
+                 od.PRECIO_UNITARIO * (1 - od.PORCENTAJE_DESCUENTO / 100) * oc.TASA_CAMBIO AS PRECIO,
+                 p.RAZON_SOCIAL                                                  AS PROVEEDOR,
+                 oc.FECHA_EMISION                                                AS FECHA,
+                 ROW_NUMBER() OVER (PARTITION BY od.ID_ARTICULO
+                                    ORDER BY oc.FECHA_EMISION DESC, oc.ID_ORDEN_COMPRA DESC) AS RN
+          FROM COM_ORDEN_COMPRA oc
+          JOIN COM_ORDEN_COMPRA_DETALLE od
+            ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
+          WHERE oc.ELIMINADO = 'N'
+            AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+            AND od.ID_ARTICULO IS NOT NULL
+        ) WHERE RN = 1
+      )
+      SELECT
+        a.ID_ARTICULO                         AS ID_ARTICULO,
+        a.CODIGO                              AS CODIGO,
+        a.NOMBRE                              AS ARTICULO,
+        a.ID_CATEGORIA                        AS ID_CATEGORIA,
+        NVL(c.NOMBRE, 'Sin categoría')        AS CATEGORIA,
+        um.CODIGO                             AS UNIDAD,
+        NVL(a.STOCK_MINIMO, 0)                AS STOCK_MINIMO,
+        NVL(a.STOCK_MAXIMO, 0)                AS STOCK_MAXIMO,
+        NVL(ex.EXISTENCIA, 0)                 AS EXISTENCIA,
+        NVL(tr.TRANSITO, 0)                   AS TRANSITO,
+        NVL(sol.SOLICITADO, 0)                AS SOLICITADO,
+        NVL(sol.SOLICITUDES, 0)               AS SOLICITUDES,
+        ult.PRECIO                            AS ULTIMO_PRECIO,
+        ult.PROVEEDOR                         AS ULTIMO_PROVEEDOR,
+        ult.FECHA                             AS ULTIMA_COMPRA
+      FROM INV_ARTICULO a
+      LEFT JOIN INV_CATEGORIA c ON c.ID_CATEGORIA = a.ID_CATEGORIA
+      LEFT JOIN INV_UNIDAD_MEDIDA um ON um.ID_UNIDAD_MEDIDA = a.ID_UNIDAD_MEDIDA
+      LEFT JOIN ex  ON ex.ID_ARTICULO  = a.ID_ARTICULO
+      LEFT JOIN tr  ON tr.ID_ARTICULO  = a.ID_ARTICULO
+      LEFT JOIN sol ON sol.ID_ARTICULO = a.ID_ARTICULO
+      LEFT JOIN ult ON ult.ID_ARTICULO = a.ID_ARTICULO
+      WHERE a.ELIMINADO = 'N'
+        AND NVL(a.ESTADO, 'A') = 'A'
+        AND (:categoria IS NULL OR a.ID_CATEGORIA = :categoria)
+      ORDER BY a.NOMBRE`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, { categoria: f.idCategoria ?? null });
+        return (res.rows ?? []).map((r) => ({
+          idArticulo: num(r["ID_ARTICULO"]),
+          codigo: str(r["CODIGO"]),
+          articulo: str(r["ARTICULO"]),
+          idCategoria: r["ID_CATEGORIA"] === null || r["ID_CATEGORIA"] === undefined ? null : num(r["ID_CATEGORIA"]),
+          categoria: str(r["CATEGORIA"]),
+          unidad: str(r["UNIDAD"]),
+          stockMinimo: num(r["STOCK_MINIMO"]),
+          stockMaximo: num(r["STOCK_MAXIMO"]),
+          existencia: Number(num(r["EXISTENCIA"]).toFixed(2)),
+          enTransito: Number(num(r["TRANSITO"]).toFixed(2)),
+          solicitado: Number(num(r["SOLICITADO"]).toFixed(2)),
+          solicitudesEnCurso: num(r["SOLICITUDES"]),
+          ultimoPrecio:
+            r["ULTIMO_PRECIO"] === null || r["ULTIMO_PRECIO"] === undefined
+              ? null
+              : Number(num(r["ULTIMO_PRECIO"]).toFixed(2)),
+          ultimoProveedor: r["ULTIMO_PROVEEDOR"] === null || r["ULTIMO_PROVEEDOR"] === undefined ? null : str(r["ULTIMO_PROVEEDOR"]),
+          ultimaCompra: r["ULTIMA_COMPRA"] === null || r["ULTIMA_COMPRA"] === undefined ? null : iso(r["ULTIMA_COMPRA"]),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "INV_ARTICULO");
+      }
+    }, conn);
+  }
+
+  /** Binds comunes de los reportes por area (alcance como lista ",1,2,3,"). */
+  private bindsArea(f: FiltroArea): Record<string, unknown> {
+    return {
+      desde: f.desde ?? null,
+      hasta: f.hasta ?? null,
+      dep: f.idDepartamento ?? null,
+      emps: f.empleados === null ? null : `,${f.empleados.join(",")},`,
+    };
+  }
+
+  /**
+   * Solicitudes por departamento del solicitante, creadas en el periodo: cuantas,
+   * en que quedaron, monto estimado y dias promedio desde la creacion hasta la
+   * aprobacion final (paso a EN_COTIZACION). Respeta el alcance (`empleados`).
+   */
+  public async solicitudesPorArea(f: FiltroArea, conn?: Connection): Promise<readonly SolicitudesAreaRow[]> {
+    const sql = `
+      SELECT
+        e.ID_DEPARTAMENTO                                                        AS ID_DEPARTAMENTO,
+        NVL(d.NOMBRE, 'Sin departamento')                                        AS DEPARTAMENTO,
+        COUNT(*)                                                                 AS SOLICITUDES,
+        COUNT(CASE WHEN s.ESTADO IN ('PENDIENTE_JEFE', 'PENDIENTE_GERENTE') THEN 1 END) AS POR_APROBAR,
+        COUNT(CASE WHEN s.ESTADO IN ('EN_COTIZACION', 'ORDEN_GENERADA') THEN 1 END)     AS APROBADAS,
+        COUNT(CASE WHEN s.ESTADO = 'RECHAZADA' THEN 1 END)                       AS RECHAZADAS,
+        NVL(SUM(s.MONTO_ESTIMADO), 0)                                            AS MONTO_ESTIMADO,
+        AVG(CAST(ap.FECHA_AP AS DATE) - CAST(s.FECHA_CREACION AS DATE))          AS DIAS_APROBACION
+      FROM COM_SOLICITUD_COMPRA s
+      JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = s.ID_EMPLEADO_SOLICITANTE
+      LEFT JOIN NOM_DEPARTAMENTO d ON d.ID_DEPARTAMENTO = e.ID_DEPARTAMENTO
+      LEFT JOIN (
+        SELECT ID_SOLICITUD, MIN(FECHA) AS FECHA_AP
+        FROM COM_WORKFLOW_APROBACION
+        WHERE ELIMINADO = 'N' AND ESTADO_NUEVO = 'EN_COTIZACION'
+        GROUP BY ID_SOLICITUD
+      ) ap ON ap.ID_SOLICITUD = s.ID_SOLICITUD
+      WHERE s.ELIMINADO = 'N'
+        AND (:desde IS NULL OR s.FECHA_CREACION >= TO_DATE(:desde, 'YYYY-MM-DD'))
+        AND (:hasta IS NULL OR s.FECHA_CREACION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)
+        AND (:dep IS NULL OR e.ID_DEPARTAMENTO = :dep)
+        AND (:emps IS NULL OR INSTR(:emps, ',' || s.ID_EMPLEADO_SOLICITANTE || ',') > 0)
+      GROUP BY e.ID_DEPARTAMENTO, NVL(d.NOMBRE, 'Sin departamento')
+      ORDER BY SOLICITUDES DESC`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, asBinds(this.bindsArea(f)));
+        return (res.rows ?? []).map((r) => ({
+          idDepartamento: r["ID_DEPARTAMENTO"] === null || r["ID_DEPARTAMENTO"] === undefined ? null : num(r["ID_DEPARTAMENTO"]),
+          departamento: str(r["DEPARTAMENTO"]),
+          solicitudes: num(r["SOLICITUDES"]),
+          porAprobar: num(r["POR_APROBAR"]),
+          aprobadas: num(r["APROBADAS"]),
+          rechazadas: num(r["RECHAZADAS"]),
+          montoEstimado: Number(num(r["MONTO_ESTIMADO"]).toFixed(2)),
+          diasPromedioAprobacion:
+            r["DIAS_APROBACION"] === null || r["DIAS_APROBACION"] === undefined
+              ? null
+              : Number(num(r["DIAS_APROBACION"]).toFixed(1)),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "COM_SOLICITUD_COMPRA");
+      }
+    }, conn);
+  }
+
+  /**
+   * Lineas de OC vigentes atribuidas al departamento de quien hizo la solicitud
+   * (OC -> cotizacion -> linea de solicitud -> solicitante). Las OC sin solicitud
+   * de origen no tienen area y no entran.
+   */
+  private static readonly FROM_LINEAS_AREA = `
+      FROM COM_ORDEN_COMPRA oc
+      JOIN COM_ORDEN_COMPRA_DETALLE od
+        ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+      JOIN COM_COTIZACION_DETALLE cd ON cd.ID_COTIZACION_DETALLE = od.ID_COTIZACION_DETALLE
+      JOIN COM_SOLICITUD_DETALLE sd ON sd.ID_SOLICITUD_DETALLE = cd.ID_SOLICITUD_DETALLE
+      JOIN COM_SOLICITUD_COMPRA s ON s.ID_SOLICITUD = sd.ID_SOLICITUD
+      JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = s.ID_EMPLEADO_SOLICITANTE
+      LEFT JOIN INV_ARTICULO a ON a.ID_ARTICULO = od.ID_ARTICULO
+      WHERE oc.ELIMINADO = 'N'
+        AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+        AND (:desde IS NULL OR oc.FECHA_EMISION >= TO_DATE(:desde, 'YYYY-MM-DD'))
+        AND (:hasta IS NULL OR oc.FECHA_EMISION < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)
+        AND (:dep IS NULL OR e.ID_DEPARTAMENTO = :dep)
+        AND (:emps IS NULL OR INSTR(:emps, ',' || s.ID_EMPLEADO_SOLICITANTE || ',') > 0)`;
+
+  private static readonly MONTO_LINEA =
+    "od.CANTIDAD * od.PRECIO_UNITARIO * (1 - od.PORCENTAJE_DESCUENTO / 100) * oc.TASA_CAMBIO";
+
+  /** Gasto comprometido en OC (GTQ, neto) por departamento del solicitante. */
+  public async gastoPorArea(f: FiltroArea, conn?: Connection): Promise<readonly GastoAreaRow[]> {
+    const sql = `
+      SELECT e.ID_DEPARTAMENTO                                         AS ID_DEPARTAMENTO,
+             COUNT(DISTINCT oc.ID_ORDEN_COMPRA)                        AS ORDENES,
+             NVL(SUM(${CompraReadRepository.MONTO_LINEA}), 0)          AS MONTO
+      ${CompraReadRepository.FROM_LINEAS_AREA}
+      GROUP BY e.ID_DEPARTAMENTO`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, asBinds(this.bindsArea(f)));
+        return (res.rows ?? []).map((r) => ({
+          idDepartamento: r["ID_DEPARTAMENTO"] === null || r["ID_DEPARTAMENTO"] === undefined ? null : num(r["ID_DEPARTAMENTO"]),
+          ordenes: num(r["ORDENES"]),
+          monto: Number(num(r["MONTO"]).toFixed(2)),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "COM_ORDEN_COMPRA");
+      }
+    }, conn);
+  }
+
+  /** En que se gasta: los articulos (o descripciones libres) de mayor monto en el alcance. */
+  public async articulosMasComprados(
+    f: FiltroArea,
+    limite: number,
+    conn?: Connection,
+  ): Promise<readonly ArticuloCompradoRow[]> {
+    const sql = `
+      SELECT NVL(a.NOMBRE, od.DESCRIPCION)                             AS ARTICULO,
+             NVL(SUM(od.CANTIDAD), 0)                                  AS CANTIDAD,
+             NVL(SUM(${CompraReadRepository.MONTO_LINEA}), 0)          AS MONTO,
+             COUNT(DISTINCT oc.ID_ORDEN_COMPRA)                        AS ORDENES
+      ${CompraReadRepository.FROM_LINEAS_AREA}
+      GROUP BY NVL(a.NOMBRE, od.DESCRIPCION)
+      ORDER BY MONTO DESC
+      FETCH FIRST :limite ROWS ONLY`;
+    return oraclePool().withConnection(async (c) => {
+      try {
+        const res = await c.execute<Row>(sql, asBinds({ ...this.bindsArea(f), limite }));
+        return (res.rows ?? []).map((r) => ({
+          articulo: str(r["ARTICULO"]),
+          cantidad: Number(num(r["CANTIDAD"]).toFixed(2)),
+          monto: Number(num(r["MONTO"]).toFixed(2)),
+          ordenes: num(r["ORDENES"]),
+        }));
+      } catch (error) {
+        throw mapOracleError(error, "COM_ORDEN_COMPRA");
+      }
+    }, conn);
+  }
+
+  /**
+   * Evidencia de control interno en el periodo (cada regla filtra por la fecha
+   * de SU documento). Reglas:
+   *  - AUTOAPROBACION: el solicitante registro una aprobacion de su propia solicitud.
+   *  - SIN_COMPETENCIA: OC cuyas lineas se adjudicaron con una sola cotizacion.
+   *  - NO_MAS_BARATA: se adjudico una oferta mas cara que la mas baja (> 0.5 %).
+   *  - SOBREPRECIO_HISTORICO: precio neto > 115 % del promedio de compras anteriores
+   *    del mismo articulo (minimo 2 compras previas).
+   *  - RECHAZO_ALTO: recepcion con mas de 10 % de unidades rechazadas.
+   */
+  public async hallazgosAuditoria(
+    f: { readonly desde?: string; readonly hasta?: string },
+    conn?: Connection,
+  ): Promise<readonly HallazgoAuditoriaRow[]> {
+    const rango = (col: string): string =>
+      `(:desde IS NULL OR ${col} >= TO_DATE(:desde, 'YYYY-MM-DD'))
+       AND (:hasta IS NULL OR ${col} < TO_DATE(:hasta, 'YYYY-MM-DD') + 1)`;
+    const netoOc = CompraReadRepository.MONTO_LINEA;
+    const consultas: readonly { tipo: TipoHallazgo; doc: "SOL" | "OC" | "REC"; sql: string }[] = [
+      {
+        tipo: "AUTOAPROBACION",
+        doc: "SOL",
+        sql: `
+          SELECT s.ID_SOLICITUD AS ID_DOC, MIN(w.FECHA) AS FECHA, NULL AS ID_PROVEEDOR, NULL AS PROVEEDOR,
+                 NVL(s.MONTO_ESTIMADO, 0) AS MONTO, NULL AS PCT,
+                 e.NOMBRES || ' ' || e.APELLIDOS || ' · ' ||
+                 LISTAGG(DISTINCT w.ESTADO_NUEVO, ', ') WITHIN GROUP (ORDER BY w.ESTADO_NUEVO) AS REF
+          FROM COM_WORKFLOW_APROBACION w
+          JOIN COM_SOLICITUD_COMPRA s ON s.ID_SOLICITUD = w.ID_SOLICITUD AND s.ELIMINADO = 'N'
+          JOIN NOM_EMPLEADO e ON e.ID_EMPLEADO = s.ID_EMPLEADO_SOLICITANTE
+          WHERE w.ELIMINADO = 'N'
+            AND w.ID_EMPLEADO_REALIZA = s.ID_EMPLEADO_SOLICITANTE
+            AND w.ESTADO_NUEVO IN ('PENDIENTE_GERENTE', 'EN_COTIZACION')
+            AND ${rango("w.FECHA")}
+          GROUP BY s.ID_SOLICITUD, s.MONTO_ESTIMADO, e.NOMBRES, e.APELLIDOS`,
+      },
+      {
+        tipo: "SIN_COMPETENCIA",
+        doc: "OC",
+        sql: `
+          WITH n AS (
+            SELECT ID_SOLICITUD_DETALLE, COUNT(DISTINCT ID_COTIZACION) AS N
+            FROM COM_COTIZACION_DETALLE WHERE ELIMINADO = 'N'
+            GROUP BY ID_SOLICITUD_DETALLE
+          )
+          SELECT oc.ID_ORDEN_COMPRA AS ID_DOC, oc.FECHA_EMISION AS FECHA, oc.ID_PROVEEDOR AS ID_PROVEEDOR,
+                 p.RAZON_SOCIAL AS PROVEEDOR, NVL(SUM(${netoOc}), 0) AS MONTO, NULL AS PCT,
+                 COUNT(*) || ' línea(s) con una sola oferta' AS REF
+          FROM COM_ORDEN_COMPRA oc
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
+          JOIN COM_ORDEN_COMPRA_DETALLE od ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+          JOIN COM_COTIZACION_DETALLE cd ON cd.ID_COTIZACION_DETALLE = od.ID_COTIZACION_DETALLE
+          JOIN n ON n.ID_SOLICITUD_DETALLE = cd.ID_SOLICITUD_DETALLE
+          WHERE oc.ELIMINADO = 'N'
+            AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+            AND n.N = 1
+            AND ${rango("oc.FECHA_EMISION")}
+          GROUP BY oc.ID_ORDEN_COMPRA, oc.FECHA_EMISION, oc.ID_PROVEEDOR, p.RAZON_SOCIAL`,
+      },
+      {
+        tipo: "NO_MAS_BARATA",
+        doc: "OC",
+        sql: `
+          WITH cot AS (
+            SELECT cd.ID_COTIZACION_DETALLE, cd.ID_SOLICITUD_DETALLE,
+                   cd.PRECIO_UNITARIO * (1 - NVL(cd.PORCENTAJE_DESCUENTO, 0) / 100) * NVL(cp.TASA_CAMBIO, 1) AS NETO
+            FROM COM_COTIZACION_DETALLE cd
+            JOIN COM_COTIZACION_PROVEEDOR cp ON cp.ID_COTIZACION = cd.ID_COTIZACION AND cp.ELIMINADO = 'N'
+            WHERE cd.ELIMINADO = 'N'
+          ),
+          mn AS (
+            SELECT ID_SOLICITUD_DETALLE, MIN(NETO) AS MINIMO, COUNT(*) AS N
+            FROM cot GROUP BY ID_SOLICITUD_DETALLE
+          )
+          SELECT oc.ID_ORDEN_COMPRA AS ID_DOC, oc.FECHA_EMISION AS FECHA, oc.ID_PROVEEDOR AS ID_PROVEEDOR,
+                 p.RAZON_SOCIAL AS PROVEEDOR,
+                 SUM((c.NETO - mn.MINIMO) * od.CANTIDAD) AS MONTO,
+                 MAX((c.NETO - mn.MINIMO) / NULLIF(mn.MINIMO, 0) * 100) AS PCT,
+                 COUNT(*) || ' línea(s) sobre la oferta más baja' AS REF
+          FROM COM_ORDEN_COMPRA oc
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
+          JOIN COM_ORDEN_COMPRA_DETALLE od ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+          JOIN cot c ON c.ID_COTIZACION_DETALLE = od.ID_COTIZACION_DETALLE
+          JOIN mn ON mn.ID_SOLICITUD_DETALLE = c.ID_SOLICITUD_DETALLE
+          WHERE oc.ELIMINADO = 'N'
+            AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+            AND mn.N > 1
+            AND c.NETO > mn.MINIMO * 1.005
+            AND ${rango("oc.FECHA_EMISION")}
+          GROUP BY oc.ID_ORDEN_COMPRA, oc.FECHA_EMISION, oc.ID_PROVEEDOR, p.RAZON_SOCIAL`,
+      },
+      {
+        tipo: "SOBREPRECIO_HISTORICO",
+        doc: "OC",
+        sql: `
+          WITH l AS (
+            SELECT oc.ID_ORDEN_COMPRA, oc.FECHA_EMISION, oc.ID_PROVEEDOR, od.ID_ARTICULO, od.CANTIDAD,
+                   od.PRECIO_UNITARIO * (1 - od.PORCENTAJE_DESCUENTO / 100) * oc.TASA_CAMBIO AS NETO
+            FROM COM_ORDEN_COMPRA oc
+            JOIN COM_ORDEN_COMPRA_DETALLE od ON od.ID_ORDEN_COMPRA = oc.ID_ORDEN_COMPRA AND od.ELIMINADO = 'N'
+            WHERE oc.ELIMINADO = 'N'
+              AND oc.ESTADO NOT IN ('CANCELADA', 'RECHAZADA')
+              AND od.ID_ARTICULO IS NOT NULL
+          )
+          SELECT l.ID_ORDEN_COMPRA AS ID_DOC, l.FECHA_EMISION AS FECHA, l.ID_PROVEEDOR AS ID_PROVEEDOR,
+                 p.RAZON_SOCIAL AS PROVEEDOR,
+                 (l.NETO - h.PROM) * l.CANTIDAD AS MONTO,
+                 (l.NETO / h.PROM - 1) * 100 AS PCT,
+                 a.NOMBRE AS REF
+          FROM l
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = l.ID_PROVEEDOR
+          JOIN INV_ARTICULO a ON a.ID_ARTICULO = l.ID_ARTICULO
+          CROSS APPLY (
+            SELECT AVG(x.NETO) AS PROM, COUNT(*) AS N
+            FROM l x
+            WHERE x.ID_ARTICULO = l.ID_ARTICULO AND x.FECHA_EMISION < l.FECHA_EMISION
+          ) h
+          WHERE h.N >= 2
+            AND h.PROM > 0
+            AND l.NETO > h.PROM * 1.15
+            AND ${rango("l.FECHA_EMISION")}`,
+      },
+      {
+        tipo: "RECHAZO_ALTO",
+        doc: "REC",
+        sql: `
+          SELECT r.ID_RECEPCION AS ID_DOC, r.FECHA_RECEPCION AS FECHA, oc.ID_PROVEEDOR AS ID_PROVEEDOR,
+                 p.RAZON_SOCIAL AS PROVEEDOR,
+                 NVL(SUM(rd.CANTIDAD_RECHAZADA * od.PRECIO_UNITARIO
+                         * (1 - od.PORCENTAJE_DESCUENTO / 100) * oc.TASA_CAMBIO), 0) AS MONTO,
+                 SUM(rd.CANTIDAD_RECHAZADA) * 100
+                   / NULLIF(SUM(rd.CANTIDAD_RECIBIDA) + SUM(rd.CANTIDAD_RECHAZADA), 0) AS PCT,
+                 'OC-' || oc.ID_ORDEN_COMPRA AS REF
+          FROM COM_RECEPCION r
+          JOIN COM_RECEPCION_DETALLE rd ON rd.ID_RECEPCION = r.ID_RECEPCION AND rd.ELIMINADO = 'N'
+          JOIN COM_ORDEN_COMPRA_DETALLE od ON od.ID_OC_DETALLE = rd.ID_OC_DETALLE
+          JOIN COM_ORDEN_COMPRA oc ON oc.ID_ORDEN_COMPRA = od.ID_ORDEN_COMPRA
+          JOIN COM_PROVEEDOR p ON p.ID_PROVEEDOR = oc.ID_PROVEEDOR
+          WHERE r.ELIMINADO = 'N'
+            AND ${rango("r.FECHA_RECEPCION")}
+          GROUP BY r.ID_RECEPCION, r.FECHA_RECEPCION, oc.ID_PROVEEDOR, p.RAZON_SOCIAL, oc.ID_ORDEN_COMPRA
+          HAVING SUM(rd.CANTIDAD_RECHAZADA) * 10
+                 > SUM(rd.CANTIDAD_RECIBIDA) + SUM(rd.CANTIDAD_RECHAZADA)`,
+      },
+    ];
+    return oraclePool().withConnection(async (c) => {
+      const filas: HallazgoAuditoriaRow[] = [];
+      for (const q of consultas) {
+        try {
+          const res = await c.execute<Row>(q.sql, { desde: f.desde ?? null, hasta: f.hasta ?? null });
+          for (const r of res.rows ?? []) {
+            filas.push({
+              tipo: q.tipo,
+              documento: q.doc,
+              idDocumento: num(r["ID_DOC"]),
+              fecha: iso(r["FECHA"]),
+              idProveedor: r["ID_PROVEEDOR"] === null || r["ID_PROVEEDOR"] === undefined ? null : num(r["ID_PROVEEDOR"]),
+              proveedor: r["PROVEEDOR"] === null || r["PROVEEDOR"] === undefined ? null : str(r["PROVEEDOR"]),
+              monto: Number(num(r["MONTO"]).toFixed(2)),
+              porcentaje: r["PCT"] === null || r["PCT"] === undefined ? null : Number(num(r["PCT"]).toFixed(1)),
+              referencia: r["REF"] === null || r["REF"] === undefined ? null : str(r["REF"]),
+            });
+          }
+        } catch (error) {
+          throw mapOracleError(error, "COM_ORDEN_COMPRA");
+        }
+      }
+      return filas;
     }, conn);
   }
 

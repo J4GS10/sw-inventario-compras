@@ -29,7 +29,8 @@ interface EnvVars {
 }
 
 async function loadEnv(): Promise<EnvVars> {
-  const raw = await readFile(resolve(REPO_ROOT, ".env"), "utf8");
+  // `.env` es opcional; las variables de entorno del proceso (p.ej. docker compose) tienen prioridad.
+  const raw = await readFile(resolve(REPO_ROOT, ".env"), "utf8").catch(() => "");
   const map = new Map<string, string>();
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -37,6 +38,10 @@ async function loadEnv(): Promise<EnvVars> {
     const eq = trimmed.indexOf("=");
     if (eq === -1) continue;
     map.set(trimmed.slice(0, eq).trim(), trimmed.slice(eq + 1).trim());
+  }
+  for (const key of ["DB_USER", "DB_PASSWORD", "DB_CONNECT_STRING"]) {
+    const value = process.env[key];
+    if (value !== undefined && value !== "") map.set(key, value);
   }
   const user = map.get("DB_USER") ?? map.get("ORACLE_USER");
   const password = map.get("DB_PASSWORD") ?? map.get("ORACLE_PASSWORD");

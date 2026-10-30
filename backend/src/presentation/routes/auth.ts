@@ -15,7 +15,6 @@ import {
 } from "../../common/errors/AppError.js";
 import { FailureRateLimiter } from "../../common/security/RateLimiter.js";
 import { clientIpOf } from "../../common/security/clientIp.js";
-import { env } from "../../common/config/EnvConfig.js";
 import { revocarToken } from "../../common/auth/jwt.js";
 import { authService } from "../../bll/services/seg/AuthService.js";
 import { PERMISO_META, ROLES } from "../../common/auth/permissions.js";
@@ -87,7 +86,9 @@ export function registerAuthRoutes(app: FastifyInstance): void {
 
   // Selector de perfiles de DEMO: nunca en produccion (lista usernames a cualquiera).
   app.get("/api/auth/usuarios-demo", async (_req, reply) => {
-    if (env().nodeEnv === "production") {
+    // Acceso rapido por perfil: activo siempre, salvo APP_LOGIN_DEMO=0 (instalacion real expuesta).
+    // Solo lista usuario/nombre/rol; entrar sigue exigiendo la contrasena.
+    if (process.env["APP_LOGIN_DEMO"] === "0") {
       reply.status(404).send({ error: { code: "NOT_FOUND", message: "No encontrado", details: [] } });
       return;
     }

@@ -13,7 +13,7 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@sw-inventario/frontend..."
+    pnpm install --frozen-lockfile --ignore-scripts --filter "@sw-inventario/frontend..."
 COPY frontend ./frontend
 RUN pnpm --filter @sw-inventario/frontend build
 
